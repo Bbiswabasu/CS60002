@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+import requests
 import os
 
 app = Flask(__name__)
@@ -151,6 +152,16 @@ def rem():
         }
         
         return jsonify(response),500
+    
+@app.route('/<path:path>', methods=['GET'])
+def catch_all(path):
+    hostname = "s2"
+    req_url = f'http://{hostname}:5000/{path}'
+    response = requests.get(req_url)
+    print(response.text)
+    return ""
+    # return response.json()
+
     
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
