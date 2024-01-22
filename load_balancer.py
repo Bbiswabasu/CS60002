@@ -35,6 +35,15 @@ class Server:
         
         self.hashRing[virtual_hash]=current_server_id
         return virtual_hash
+    
+    def removeServers(self,serversToDel,serversRem):
+        
+        # Clean Hash Ring
+        for serverIndi in serversToDel:
+            for virtual_hash in serverIndi['virtual_loc']:
+                self.hashRing[virtual_hash]=-1
+        
+        self.serverMap=serversRem
 
 
 @app.route("/rep", methods=["GET"])
@@ -108,6 +117,33 @@ def rem():
         
         if payload['n']<len(payload['hostnames']):
             raise
+
+        serversToDel=[]
+
+        for serverIndi in server.serverMap:
+            if serverIndi['server_name'] in payload['hostnames']:
+                serversToDel.append(serverIndi)
+        
+        for serverIndi in server.serverMap:
+            if len(serversToDel)==payload['n']:
+                break
+
+            if serverIndi['server_name'] not in serversToDel:
+                serversToDel.append(serverIndi)
+        
+        serversRem=[serverIndi for serverIndi in server.serverMap if serverIndi not in serversToDel]
+         
+        # Remove Servers and Clean up the state
+        server.removeServers(serversToDel,serversRem)
+        
+        # Stopping the containers
+        for serverIndi in serversToDel:
+            res = os.popen(f"sudo docker stop {serverIndi['server_name']}").read()
+            
+            if len(res) == 0:
+                raise
+        
+        return rep()
     except:
         response={
             "message":"Error in /rm in load_balancer.py",
