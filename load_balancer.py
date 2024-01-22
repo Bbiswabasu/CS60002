@@ -158,10 +158,7 @@ def catch_all(path):
     hostname = "s2"
     req_url = f'http://{hostname}:5000/{path}'
     response = requests.get(req_url)
-    print(response.text)
-    return ""
-    # return response.json()
-
+    return response.json(), response.status_code
     
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
