@@ -1,19 +1,22 @@
-from flask import Flask
+from flask import Flask,jsonify
 import os
 
 app = Flask(__name__)
 
-serverId = os.environ['serverId']
-
 @app.route("/home")
 def home():
-    response = {"message": f"Hello from Server: {serverId}", "status": "successful"}
-    return response, 200
+    SERVER_ID = os.environ['SERVER_ID']
+
+    response = {
+        "message": f"Hello from Server: {SERVER_ID}",
+          "status": "successful"
+          }
+    return jsonify(response), 200
 
 
 @app.route("/heartbeat")
 def heartbeat():
-    return {}, 200
+    return jsonify({}), 200
 
 
 if __name__ == "__main__":
