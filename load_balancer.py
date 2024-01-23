@@ -1,11 +1,13 @@
 from flask import Flask, jsonify, request
 import requests
 import os
+import random
 
 app = Flask(__name__)
 
 class Server:
     _instance=None
+
     SERVER_ID=0
     RING_SIZE=512
     VIRTUAL_INSTANCE=9
@@ -13,13 +15,11 @@ class Server:
     hashRing=[]  # [ 0 0 0 0]
     
     serverMap=[] # [  { server_id,server_name,virtual_loc } ]
-    
-    def __init__(self):
-        self.hashRing=[-1 for _ in range(self.RING_SIZE)]
 
     def __new__(self):
         if not self._instance:
             self._instance=super(Server,self).__new__(self)
+            self.hashRing=[-1 for _ in range(self.RING_SIZE)]
         
         return self._instance
     
@@ -48,6 +48,21 @@ class Server:
 
     def __del__(self):
         self.removeServers(self.serverMap, [])
+    def getServerName(self, serverId):
+        for server in self.serverMap:
+            if serverId == server['server_id']:
+                return server['server_name']
+        return None
+        
+
+    def mapRequest(self, requestId):
+        requestHash = self.request_hash(requestId)
+        while(self.hashRing[requestHash]==-1):
+            requestHash+=1
+            requestHash%=self.RING_SIZE
+        serverName = self.getServerName(self.hashRing[requestHash])
+        return serverName
+
 
 @app.route("/rep", methods=["GET"])
 def rep():
@@ -156,11 +171,19 @@ def rem():
         return jsonify(response),500
     
 @app.route('/<path:path>', methods=['GET'])
-def catch_all(path):
-    hostname = "s2"
-    req_url = f'http://{hostname}:5000/{path}'
-    response = requests.get(req_url)
-    return response.json(), response.status_code
+def balancer(path):
+    try:
+        server = Server()
+        hostname = server.mapRequest(random.randint(int(1e5),int(1e6)-1))
+        req_url = f'http://{hostname}:5000/{path}'
+        response = requests.get(req_url)
+        return response.json(), response.status_code
+    except:
+        response={
+            "message":"Error in /balancer in load_balancer.py",
+            "status":"unsuccessful"
+        }
+        return jsonify(response),500
     
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
