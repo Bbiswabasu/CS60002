@@ -133,11 +133,10 @@ def add():
         return rep()
     except:
         response={
-            "message":"Error in /add in load_balancer.py",
-            "status":"unsuccessful"
-        }
-
-        return jsonify(response),500
+          "message" : "<Error> Length of hostname list is more than newly added instances",
+           "status" : "failure"
+           }
+        return jsonify(response),400
 
 
 @app.route("/rm",methods=["DELETE"])
@@ -168,11 +167,11 @@ def rem():
         return rep()
     except:
         response={
-            "message":"Error in /rm in load_balancer.py",
-            "status":"unsuccessful"
-        }
+          "message" : "<Error> Length of hostname list is more than removable instances",
+           "status" : "failure"
+           }
         
-        return jsonify(response),500
+        return jsonify(response),400
     
 @app.route('/<path:path>', methods=['GET'])
 def balancer(path):
@@ -184,10 +183,10 @@ def balancer(path):
         return response.json(), response.status_code
     except:
         response={
-            "message":"Error in /balancer in load_balancer.py",
+            "message":f"<Error> {path} endpoint does not exist in server replicas",
             "status":"unsuccessful"
         }
-        return jsonify(response),500
+        return jsonify(response),400
     
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
