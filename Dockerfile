@@ -17,4 +17,4 @@ RUN pip install -r requirements.txt
 EXPOSE 5000
 
 # Run script.py when the container launches
-CMD ["make", "-C", "."]
+CMD ["python3", "load_balancer.py"]

@@ -46,6 +46,8 @@ class Server:
         
         self.serverMap=serversRem
 
+    def __del__(self):
+        self.removeServers(self.serverMap, [])
 
 @app.route("/rep", methods=["GET"])
 def rep():
