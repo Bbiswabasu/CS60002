@@ -1,9 +1,14 @@
 from flask import Flask, jsonify, request
+import uuid
 import requests
 import os
 import random
 
 app = Flask(__name__)
+
+def generate_random_id():
+    unique_id = uuid.uuid4()
+    return int(unique_id.int)
 
 class Server:
     _instance=None
@@ -38,13 +43,15 @@ class Server:
         return virtual_hash
     
     def addServers(self,serversToAdd):
-        for new_server_name in serversToAdd:
+        for new_server_name in serversToAdd:            
+            random_id = generate_random_id()
+
             self.SERVER_ID+=1
 
             virtual_loc=[]
             for loop in range(0,self.VIRTUAL_INSTANCE):
-                virtual_hash=self.virtual_server_hash(self.SERVER_ID,loop+1)
-                virtual_loc.append(self.vacantRingSpot(self.SERVER_ID,virtual_hash))
+                virtual_hash=self.virtual_server_hash(random_id,loop+1)
+                virtual_loc.append(self.vacantRingSpot(random_id,virtual_hash))
             
             res = os.popen(f"sudo docker run --name {new_server_name} --network pub --network-alias {new_server_name} -e SERVER_ID={self.SERVER_ID} -d ds_server:latest").read()
             
@@ -52,7 +59,7 @@ class Server:
                 raise
                      
             self.serverMap.append({
-                "server_id":self.SERVER_ID,
+                "server_id":random_id,
                 "server_name":new_server_name,
                 "virtual_loc":virtual_loc
             })
@@ -77,6 +84,7 @@ class Server:
 
     def __del__(self):
         self.removeServers(self.serverMap, [])
+        
     def getServerName(self, serverId):
         for server in self.serverMap:
             if serverId == server['server_id']:
@@ -121,7 +129,7 @@ def add():
         
         if payload["n"]<len(payload["hostnames"]):
             raise 
-    
+        
         tmp_server_id=server.SERVER_ID
 
         while payload["n"]>len(payload["hostnames"]):
