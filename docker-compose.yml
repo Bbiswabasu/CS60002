@@ -20,3 +20,4 @@ services:
 networks:
   pub:
     name: pub
+    external: true
