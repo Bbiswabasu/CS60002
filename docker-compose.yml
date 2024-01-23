@@ -6,7 +6,6 @@ services:
     build: .
     image: ds_load_balancer
     container_name: load_balancer_1
-    platform: linux/amd64
     ports:
       - "5000:5000" # Exposing port to host
     volumes:
@@ -21,4 +20,3 @@ services:
 networks:
   pub:
     name: pub
-    external: true
