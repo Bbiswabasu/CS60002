@@ -1,16 +1,14 @@
-from flask import Flask,jsonify
+from flask import Flask, jsonify
 import os
 
 app = Flask(__name__)
 
+
 @app.route("/home")
 def home():
-    SERVER_ID = os.environ['SERVER_ID']
+    SERVER_ID = os.environ["SERVER_ID"]
 
-    response = {
-        "message": f"Hello from Server: {SERVER_ID}",
-          "status": "successful"
-          }
+    response = {"message": f"Hello from Server: {SERVER_ID}", "status": "successful"}
     return jsonify(response), 200
 
 
