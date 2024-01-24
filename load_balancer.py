@@ -93,7 +93,7 @@ class Server:
         self.serverMap = serversRem
 
     def __del__(self):
-        self.removeServers(self.serverMap, [])
+        self.removeServers(self.serverMap)
 
     def getServerName(self, serverId):
         for server in self.serverMap:
@@ -137,20 +137,36 @@ def add():
         payload = request.json
 
         if payload["n"] < len(payload["hostnames"]):
-            raise
+            raise Exception(
+                "<Error> Length of hostname list is more than newly added instances"
+            )
 
         tmp_server_id = server.SERVER_ID
 
-        while payload["n"] > len(payload["hostnames"]):
-            tmp_server_id += 1
-            payload["hostnames"].append(f"pub_server_{tmp_server_id}")
+        serversToAdd = []
 
-        server.addServers(payload["hostnames"])
+        for hostname in payload["hostnames"]:
+            print(
+                hostname,
+                any(hostname in server["server_name"] for server in server.serverMap),
+            )
+            if not any(
+                hostname in server["server_name"] for server in server.serverMap
+            ):
+                serversToAdd.append(hostname)
+
+        while payload["n"] > len(serversToAdd):
+            tmp_server_id += 1
+            serversToAdd.append(f"pub_server_{tmp_server_id}")
+
+        print(serversToAdd)
+
+        server.addServers(serversToAdd)
 
         return rep()
-    except:
+    except Exception as e:
         response = {
-            "message": "<Error> Length of hostname list is more than newly added instances",
+            "message": str(e),
             "status": "failure",
         }
         return jsonify(response), 400
@@ -163,7 +179,9 @@ def rem():
         payload = request.json
 
         if payload["n"] < len(payload["hostnames"]):
-            raise
+            raise Exception(
+                "<Error> Length of hostname list is more than removable instances"
+            )
 
         serversToDel = []
 
@@ -182,9 +200,9 @@ def rem():
         server.removeServers(serversToDel)
 
         return rep()
-    except:
+    except Exception as e:
         response = {
-            "message": "<Error> Length of hostname list is more than removable instances",
+            "message": str(e),
             "status": "failure",
         }
 
@@ -208,4 +226,4 @@ def balancer(path):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)

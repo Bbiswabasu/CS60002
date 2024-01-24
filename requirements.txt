@@ -1,2 +1,2 @@
-Flask==2.3.2
-requests
+Flask==3.0.1
+Requests==2.31.0
