@@ -146,10 +146,6 @@ def add():
         serversToAdd = []
 
         for hostname in payload["hostnames"]:
-            print(
-                hostname,
-                any(hostname in server["server_name"] for server in server.serverMap),
-            )
             if not any(
                 hostname in server["server_name"] for server in server.serverMap
             ):
@@ -158,8 +154,6 @@ def add():
         while payload["n"] > len(serversToAdd):
             tmp_server_id += 1
             serversToAdd.append(f"pub_server_{tmp_server_id}")
-
-        print(serversToAdd)
 
         server.addServers(serversToAdd)
 
@@ -193,7 +187,7 @@ def rem():
             if len(serversToDel) == payload["n"]:
                 break
 
-            if serverIndi["server_name"] not in serversToDel:
+            if serverIndi not in serversToDel:
                 serversToDel.append(serverIndi)
 
         # Remove Servers and Clean up the state
