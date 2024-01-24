@@ -101,7 +101,7 @@ class Server:
             if serverId == server["server_id"]:
                 return server["server_name"]
         return None
-        
+
     def mapRequest(self, requestId):
         requestHash = self.request_hash(requestId)
         while self.hashRing[requestHash] == -1:
@@ -110,16 +110,18 @@ class Server:
         serverName = self.getServerName(self.hashRing[requestHash])
         return serverName
 
+
 def callLoopback(method, request_body=None):
     loopback = "http://127.0.0.1:5000/"
     if method == "POST":
-        req_url = loopback+"add"
-        response = requests.post(req_url,json=request_body)
+        req_url = loopback + "add"
+        response = requests.post(req_url, json=request_body)
     elif method == "DELETE":
-        req_url = loopback+"rm"
-        response = requests.delete(req_url,json=request_body)
+        req_url = loopback + "rm"
+        response = requests.delete(req_url, json=request_body)
     time.sleep(1)
     return response
+
 
 @app.route("/rep", methods=["GET"])
 def rep():
@@ -221,26 +223,26 @@ def balancer(path):
 
         if len(server.serverMap) == 0:
             req_body = {"n": 1, "hostnames": []}
-            response = callLoopback("POST",req_body)
+            response = callLoopback("POST", req_body)
 
-        hostname = server.mapRequest(random.randint(int(1e5),int(1e6)-1))
-        req_url = f'http://{hostname}:5000/heartbeat'
+        hostname = server.mapRequest(random.randint(int(1e5), int(1e6) - 1))
+        req_url = f"http://{hostname}:5000/heartbeat"
         try:
             response = requests.get(req_url)
         except Exception as e:
             req_body = {"n": 1, "hostnames": [hostname]}
             # Removing server from list
-            response = callLoopback("DELETE",req_body)
+            response = callLoopback("DELETE", req_body)
             # Spawning new server
-            response = callLoopback("POST",req_body)
+            response = callLoopback("POST", req_body)
 
-        req_url = f'http://{hostname}:5000/{path}'
+        req_url = f"http://{hostname}:5000/{path}"
         response = requests.get(req_url)
         return response.json(), response.status_code
     except:
         response = {
-            "message": f"<Error> {path} endpoint does not exist in server replicas",
-            "status": "unsuccessful",
+            "message": f"<Error> '/{path}' endpoint does not exist in server replicas",
+            "status": "failure",
         }
         return jsonify(response), 400
 
