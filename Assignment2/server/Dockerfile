@@ -1,17 +1,26 @@
-# Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM mysql:8.0-debian
 
-# Set the working directory in the container
-WORKDIR /app
+COPY deploy.sh /always-initdb.d/
+COPY . /bkr
+WORKDIR /bkr
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+RUN apt-get update
+RUN apt-get install -y python3
+RUN apt-get install -y python3-pip
 
-# Install any needed packages specified in requirements.txt
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
+RUN chmod +x /bkr/custom-entry.sh
 
-# Expose the port on which the Flask app will run
+ENV USER=theuser
+RUN adduser --home /home/$USER --disabled-password --gecos GECOS $USER \
+  && chsh -s /bin/zsh $USER
+
+USER $USER
+ENV HOME=/home/$USER
+ENV MYSQL_ROOT_PASSWORD="abc"
+
 EXPOSE 5000
 
-# Run script.py when the container launches
-CMD ["python3", "server.py"]
+ENTRYPOINT ["/bkr/custom-entry.sh"]
+CMD ["mysqld"]
