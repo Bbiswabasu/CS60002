@@ -1,11 +1,13 @@
 from flask import Flask, jsonify, request
 import os
+from manager import Manager
 
 app = Flask(__name__)
 
+
 class DB:
-    DB_instance={}
-    _instance=None
+    DB_instance = {}
+    _instance = None
 
     def __new__(self):
         if not self._instance:
@@ -40,11 +42,11 @@ class DB:
                 return
     
     def getStatus(self):
-        shardNames=[]
+        shardNames = []
 
         for shard in self.DB_instance.keys():
             shardNames.append(shard)
-        
+
         return shardNames
     
     def getData(self,shardName):
@@ -70,29 +72,31 @@ class DB:
         return self.DB_instance
 
 
-@app.route("/config",methods=["POST"])
+managers = []
+
+
+@app.route("/config", methods=["POST"])
 def config():
-    payload=request.json
-    
-    db=DB()
-    for shardName in payload['shards']:
-        db.addShard(shardName)
-    
-    shards=db.getStatus()
-    
-    message=""
+    payload = request.json
 
-    for shardName in shards:
-        message+=f"Server0: {shardName}, "
-    
-    message+="configured"
+    # db=DB()
+    message = ""
+    for shardName in payload["shards"]:
+        try:
+            managers.append(
+                Manager(
+                    shardName, payload["schema"]["columns"], payload["schema"]["dtypes"]
+                )
+            )
+            message += f"Server0: {shardName}, "
+        except Exception as e:
+            print(e)
 
-    response={
-        "message":message,
-        "status":'successful'
-    }
+    message += "configured"
 
-    return response,200
+    response = {"message": message, "status": "successful"}
+
+    return response, 200
 
 
 @app.route("/copy",methods=["GET"])
@@ -187,4 +191,4 @@ def delete():
     return response, 200
 
 if __name__ == "__main__":
-    app.run(debug=True,host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5000)
