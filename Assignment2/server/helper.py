@@ -42,7 +42,9 @@ class DataHandler:
         return id
 
     def GetAll(self):
-        self.SQL_handle.jobrunner.apply(self.SQL_handle.getAll, (self.table_name))
+        return self.SQL_handle.jobrunner.apply(
+            self.SQL_handle.getAll, (self.table_name,)
+        )
 
     def GetAT(self, idx, col):
         return self.SQL_handle.jobrunner.apply(
@@ -146,8 +148,8 @@ class SQLHandler:
 
     def update(self, table_name, Stud_id, entry):
         queryString = ""
-        for key in entry.keys():
-            queryString += f"{str(key)} = {entry[key]}, "
+        for k, v in entry.items():
+            queryString += f"{k} = '{v}', "
         queryString = queryString[:-2]
         queryString = f"UPDATE {table_name} SET {queryString} WHERE Stud_id = {Stud_id}"
         self.query(queryString)
@@ -167,7 +169,7 @@ class SQLHandler:
     def Insert(self, table_name, row):
         id = self.Count(table_name)
         row_str = "0"
-        for v in row:
+        for k, v in row.items():
             if type(v) == str:
                 row_str += f", '{v}'"
             else:
@@ -183,5 +185,5 @@ class SQLHandler:
         return [r[0] for r in res if r[0] not in ["subl", "publ"]]
 
     def Count(self, table_name):
-        res = self.query(f"SELECT count(id) FROM {table_name}")
-        return res[0][0]
+        res = self.query(f"SELECT count(id) AS count FROM {table_name}")
+        return res[0]["count"]
