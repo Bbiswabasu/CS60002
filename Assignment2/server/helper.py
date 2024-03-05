@@ -33,35 +33,32 @@ class DataHandler:
     #     self.SQL_handle.jobrunner.apply(
     #         self.SQL_handle.setVal, (self.table_name, idx, col, val)
     #     )
-    
-    def InsertMany(self,entries):
+
+    def InsertMany(self, entries):
         for entry in entries:
             id = self.SQL_handle.jobrunner.apply(
-                self.SQL_handle.Insert, 
-                (self.table_name, entry)
+                self.SQL_handle.Insert, (self.table_name, entry)
             )
         return id
 
     def GetAll(self):
-        self.SQL_handle.jobrunner.apply(
-            self.SQL_handle.getAll, (self.table_name)
-        )
+        self.SQL_handle.jobrunner.apply(self.SQL_handle.getAll, (self.table_name))
 
     def GetAT(self, idx, col):
         return self.SQL_handle.jobrunner.apply(
             self.SQL_handle.getVal, (self.table_name, idx, col)
         )
-    
+
     def GetRange(self, low, high):
         return self.SQL_handle.jobrunner.apply(
             self.SQL_handle.getRangeVals, (self.table_name, low, high)
         )
-        
+
     def Update(self, Stud_id, entry):
         return self.SQL_handle.jobrunner.apply(
             self.SQL_handle.update, (self.table_name, Stud_id, entry)
         )
-    
+
     def Delete(self, Stud_id):
         return self.SQL_handle.jobrunner.apply(
             self.SQL_handle.delete, (self.table_name, Stud_id)
@@ -109,18 +106,18 @@ class SQLHandler:
 
     def UseDB(self, dbname=None):
         res = self.query("SHOW DATABASES")
-        if dbname not in [r[0] for r in res]:
+        if dbname not in [r["Database"] for r in res]:
             self.query(f"CREATE DATABASE {dbname}")
         self.query(f"USE {dbname}")
 
     def DropDB(self, dbname=None):
         res = self.query("SHOW DATABASES")
-        if dbname in [r[0] for r in res]:
+        if dbname in [r["Database"] for r in res]:
             self.query(f"DROP DATABASE {dbname}")
 
     def hasTable(self, tabname=None, columns=None, dtypes=None):
         res = self.query("SHOW TABLES")
-        if tabname not in [r[0] for r in res]:
+        if tabname not in [r[f"Tables_in_{self.db}"] for r in res]:
             dmap = {"Number": "INT", "String": "VARCHAR(32)"}
             col_config = ""
             for c, d in zip(columns, dtypes):
@@ -129,13 +126,15 @@ class SQLHandler:
                 f"CREATE TABLE {tabname} (id INT AUTO_INCREMENT PRIMARY KEY{col_config})"
             )
         return tabname
-    
-    def getAll(self):
+
+    def getAll(self, table_name):
         rows = self.query(f"SELECT * FROM {table_name}")
         return rows
-    
+
     def getRangeVals(self, table_name, low, high):
-        rows = self.query(f"SELECT * FROM {table_name} WHERE Stud_id>={low} AND Stud_id<={high}")
+        rows = self.query(
+            f"SELECT * FROM {table_name} WHERE Stud_id>={low} AND Stud_id<={high}"
+        )
         return rows
 
     def getVal(self, table_name, idx, col):
@@ -144,16 +143,16 @@ class SQLHandler:
             raise KeyError(f"Key:idx-{idx} is not found")
         else:
             return row[0][0]
-    
+
     def update(self, table_name, Stud_id, entry):
         queryString = ""
         for key in entry.keys():
-            queryString+=f'{str(key)} = {entry[key]}, '
+            queryString += f"{str(key)} = {entry[key]}, "
         queryString = queryString[:-2]
         queryString = f"UPDATE {table_name} SET {queryString} WHERE Stud_id = {Stud_id}"
         self.query(queryString)
-    
-    def delete(self,table_name,Stud_id):
+
+    def delete(self, table_name, Stud_id):
         self.query(f"DELETE FROM {table_name} WHERE Stud_id = {Stud_id}")
 
     def setVal(self, table_name, idx, col, val):

@@ -38,7 +38,7 @@ def read():
     payload=request.json
     shardName = payload["shard"]
     Stud_id_range = payload["Stud_id"]
-    data = manager[shardName].read(Stud_id_range["low"],Stud_id_range["high"])
+    data = managers[shardName].read(Stud_id_range["low"],Stud_id_range["high"])
     response={
         "data":data,
         "status":"success"
