@@ -1,2 +1,2 @@
 #!/bin/bash
-python3 /bkr/server.py &
+python3 /app/server.py &

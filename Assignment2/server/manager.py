@@ -10,9 +10,6 @@ class Manager:
 
     def _setupSQL(self):
         self.sql_handler = SQLHandler(
-            host="localhost", user="root", password="abc", db="dQdb"
+            host="localhost", user="root", password="mysql1234", db=self.shard_id
         )
-        self.data_handler = DataHandler(
-            self.columns,
-            self.dtypes,
-        )
+        self.data_handler = DataHandler(self.columns, self.dtypes, self.sql_handler)

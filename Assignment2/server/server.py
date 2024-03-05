@@ -35,7 +35,6 @@ def config():
 
     # db=DB()
     message = ""
-    error = ""
     for shardName in payload["shards"]:
         try:
             managers.append(
@@ -45,10 +44,9 @@ def config():
             )
             message += f"Server0: {shardName}, "
         except Exception as e:
-            error += f"Server0: {shardName},"
+            print(e)
 
-    message += "configured |"
-    message += error
+    message += "configured"
 
     response = {"message": message, "status": "successful"}
 

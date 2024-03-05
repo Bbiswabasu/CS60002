@@ -46,7 +46,7 @@ class DataHandler:
 
 
 class SQLHandler:
-    def __init__(self, host="localhost", user="root", password="abc", db="sh1"):
+    def __init__(self, host="localhost", user="root", password="mysql1234", db="sh1"):
         self.jobrunner = Pool(1)
         self.host = host
         self.user = user
@@ -62,7 +62,8 @@ class SQLHandler:
                 )
                 self.UseDB(self.db)
                 connected = True
-            except Exception:
+            except Exception as e:
+                print(e)
                 pass
 
     def query(self, sql):
@@ -92,7 +93,7 @@ class SQLHandler:
     def hasTable(self, tabname=None, columns=None, dtypes=None):
         res = self.query("SHOW TABLES")
         if tabname not in [r[0] for r in res]:
-            dmap = {"int": "INT", "str": "VARCHAR(32)"}
+            dmap = {"Number": "INT", "String": "VARCHAR(32)"}
             col_config = ""
             for c, d in zip(columns, dtypes):
                 col_config += f", {c} {dmap[d]}"

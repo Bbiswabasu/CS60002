@@ -1,16 +1,16 @@
 FROM mysql:8.0-debian
 
 COPY deploy.sh /always-initdb.d/
-COPY . /bkr
-WORKDIR /bkr
+COPY . /app
+WORKDIR /app
 
 RUN apt-get update
 RUN apt-get install -y python3
 RUN apt-get install -y python3-pip
 
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
-RUN chmod +x /bkr/custom-entry.sh
+RUN pip install --upgrade pip --break-system-packages
+RUN pip install -r requirements.txt --break-system-packages
+RUN chmod +x /app/custom-entry.sh
 
 ENV USER=theuser
 RUN adduser --home /home/$USER --disabled-password --gecos GECOS $USER \
@@ -18,9 +18,9 @@ RUN adduser --home /home/$USER --disabled-password --gecos GECOS $USER \
 
 USER $USER
 ENV HOME=/home/$USER
-ENV MYSQL_ROOT_PASSWORD="abc"
+ENV MYSQL_ROOT_PASSWORD="mysql1234"
 
 EXPOSE 5000
 
-ENTRYPOINT ["/bkr/custom-entry.sh"]
+ENTRYPOINT ["/app/custom-entry.sh"]
 CMD ["mysqld"]
