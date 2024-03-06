@@ -19,7 +19,14 @@ class Server:
     
     def addShard(self,shard_id):
         self.shardsToDB[shard_id]="Database Instance"
-
+    
+    def getStatus(self):
+        res=[]
+        for key in self.shardsToDB:
+            res.append(key)
+        
+        return res
+    
     def __str__(self):
         res=f"server_id - {self.server_id}\n"
 
@@ -42,6 +49,9 @@ class ServerMap:
 
         return self._instance
     
+    def getServersCount(self):
+        return len(self.nameToIdMap)
+    
     def addServer(self,server_name):
         unique_id=generate_random_id()
         self.nameToIdMap[server_name]=unique_id
@@ -53,6 +63,14 @@ class ServerMap:
 
     def getIdFromName(self,server_name):
         return self.nameToIdMap[server_name]
+    
+    def getStatus(self):
+        res={}
+
+        for key,value in self.nameToIdMap.items():
+            res[key]=self.idToServer[value].getStatus()
+        
+        return res
     
     def __str__(self):
         res="NameToIDMap - [ \n "
@@ -89,6 +107,12 @@ class Shard:
         self.student_id_low=student_id_low
         self.shard_size=shard_size
         self.hashRing = [-1 for _ in range(self.RING_SIZE)]
+    
+    def getStudentIdLow(self):
+        return self.student_id_low
+    
+    def getShardSize(self):
+        return self.shard_size
 
     
     def request_hash(self, i):
@@ -131,6 +155,14 @@ class ShardMap:
     def getIdFromName(self,shard_name):
         return self.nameToIdMap[shard_name]
     
+    def getNameFromId(self,shard_id):
+        
+        for key,value in self.nameToIdMap.items():
+            if shard_id==value:
+                return key
+            
+        return "NA Shard"
+
     def addShard(self,shard):
         shard_name=shard['Shard_id']
         student_id_low=shard['Stud_id_low']
@@ -147,6 +179,21 @@ class ShardMap:
         shard.addServer(server_id)
 
     
+    def getStatus(self):
+        
+        res=[]
+        for key,value in self.nameToIdMap.items():
+
+            currRes={
+                "Shard_id":key,
+                "Stud_id_low":self.idToShard[value].getStudentIdLow(),
+                "Shard_size":self.idToShard[value].getShardSize()
+            }
+
+            res.append(currRes)
+        
+        return res
+         
     def __str__(self):
         res="NameToID - [\n "
 
@@ -190,11 +237,9 @@ def init():
             serverMap.addShardToServer(server_id,shard_id)
 
     
-    print(shardMap)
-    print(serverMap)
+    # print(shardMap)
+    # print(serverMap)
     
-    # print(shardMap.nameToIdMap)
-    # print(serverMap.nameToIdMap)
 
     response={
         "message":"Configured Database",
@@ -202,6 +247,75 @@ def init():
     }
 
     return response,200
+
+
+@app.route("/status",methods=["GET"])
+def status():
+    
+    serverMap=ServerMap()
+    shardMap=ShardMap()
+
+    shards=shardMap.getStatus()
+    servers=serverMap.getStatus()
+    
+    print(shards)
+    print(servers)
+    newServers={}
+
+    for key,value in servers.items():
+        shardNames=[]
+        for shardId in value:
+            shardNames.append(shardMap.getNameFromId(shardId))
+        
+        newServers[key]=shardNames
+
+    response={
+        "shards":shards,
+        "servers":newServers
+    }
+
+    return response,200
+
+@app.route("/add",methods=["POST"])
+def add():
+    payload=request.json
+
+    serverMap=ServerMap()
+    shardMap=ShardMap()
+
+    for shard in payload['new_shards']:
+        shardMap.addShard(shard)
+    
+    print(shardMap)
+    # print(serverMap)
+    for server_name,shards in payload['servers'].items():
+        serverMap.addServer(server_name)
+        
+        server_id=serverMap.getIdFromName(server_name)
+        
+        print(server_name)
+        for shard in shards:
+            shardMap.addServerToShard(shard,server_id)
+            print(shard)
+            shard_id=shardMap.getIdFromName(shard)
+            print(shard_id)
+            serverMap.addShardToServer(server_id,shard_id)
+        print("---------")
+    response={}
+
+    response["N"]=serverMap.getServersCount()
+    
+    message="Added "
+    for server in payload["servers"]:
+        message+=f"{server}, "
+    message+="successfully"
+
+    response["message"]=message
+    response["status"]="successfull"
+
+    return response,200
+    
+
 
 
 
