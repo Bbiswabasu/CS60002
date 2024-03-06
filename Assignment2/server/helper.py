@@ -1,6 +1,4 @@
 import os
-import numpy as np
-import pandas as pd
 import pymysql
 from multiprocessing.dummy import Pool
 
@@ -17,38 +15,22 @@ class DataHandler:
             self.SQL_handle.hasTable, (table_name, self.columns, self.dtypes)
         )
 
-    @property
-    def Count(self):
-        return self.SQL_handle.jobrunner.apply(
-            self.SQL_handle.Count, (self.table_name,)
-        )
-
     def Insert(self, row):
         id = self.SQL_handle.jobrunner.apply(
-            self.SQL_handle.Insert, (self.table_name, row)
+            self.SQL_handle.insert, (self.table_name, row)
         )
         return id
-
-    # def Update(self, idx, col, val):
-    #     self.SQL_handle.jobrunner.apply(
-    #         self.SQL_handle.setVal, (self.table_name, idx, col, val)
-    #     )
 
     def InsertMany(self, entries):
         for entry in entries:
             id = self.SQL_handle.jobrunner.apply(
-                self.SQL_handle.Insert, (self.table_name, entry)
+                self.SQL_handle.insert, (self.table_name, entry)
             )
         return id
 
     def GetAll(self):
         return self.SQL_handle.jobrunner.apply(
             self.SQL_handle.getAll, (self.table_name,)
-        )
-
-    def GetAT(self, idx, col):
-        return self.SQL_handle.jobrunner.apply(
-            self.SQL_handle.getVal, (self.table_name, idx, col)
         )
 
     def GetRange(self, low, high):
@@ -64,11 +46,6 @@ class DataHandler:
     def Delete(self, Stud_id):
         return self.SQL_handle.jobrunner.apply(
             self.SQL_handle.delete, (self.table_name, Stud_id)
-        )
-
-    def IncrementBy(self, idx, col, by):
-        self.SQL_handle.jobrunner.apply(
-            self.SQL_handle.IncrementBy, (self.table_name, idx, col, by)
         )
 
 
@@ -87,7 +64,7 @@ class SQLHandler:
                 self.mydb = pymysql.connect(
                     host=self.host, user=self.user, password=self.password
                 )
-                self.UseDB(self.db)
+                self.useDB(self.db)
                 connected = True
             except Exception as e:
                 print(e)
@@ -106,16 +83,15 @@ class SQLHandler:
         self.mydb.commit()
         return res
 
-    def UseDB(self, dbname=None):
+    def count(self, table_name):
+        res = self.query(f"SELECT count(id) AS count FROM {table_name}")
+        return res[0]["count"]
+    
+    def useDB(self, dbname=None):
         res = self.query("SHOW DATABASES")
         if dbname not in [r["Database"] for r in res]:
             self.query(f"CREATE DATABASE {dbname}")
         self.query(f"USE {dbname}")
-
-    def DropDB(self, dbname=None):
-        res = self.query("SHOW DATABASES")
-        if dbname in [r["Database"] for r in res]:
-            self.query(f"DROP DATABASE {dbname}")
 
     def hasTable(self, tabname=None, columns=None, dtypes=None):
         res = self.query("SHOW TABLES")
@@ -139,13 +115,6 @@ class SQLHandler:
         )
         return rows
 
-    def getVal(self, table_name, idx, col):
-        row = self.query(f"SELECT {col} FROM {table_name} where id={idx+1}")
-        if len(row) == 0:
-            raise KeyError(f"Key:idx-{idx} is not found")
-        else:
-            return row[0][0]
-
     def update(self, table_name, Stud_id, entry):
         queryString = ""
         for k, v in entry.items():
@@ -157,33 +126,11 @@ class SQLHandler:
     def delete(self, table_name, Stud_id):
         self.query(f"DELETE FROM {table_name} WHERE Stud_id = {Stud_id}")
 
-    def setVal(self, table_name, idx, col, val):
-        if type(val) == str:
-            self.query(f"UPDATE {table_name} SET {col}='{val}' WHERE id={idx+1}")
-        else:
-            self.query(f"UPDATE {table_name} SET {col}={val} WHERE id={idx+1}")
-
-    def IncrementBy(self, table_name, idx, col, by):
-        self.query(f"UPDATE {table_name} SET {col}={col}+{by} WHERE id={idx+1}")
-
-    def Insert(self, table_name, row):
-        id = self.Count(table_name)
+    def insert(self, table_name, row):
+        id = self.count(table_name)
         row_str = "0"
         for k, v in row.items():
-            if type(v) == str:
-                row_str += f", '{v}'"
-            else:
-                v_reduced = "NULL" if np.isnan(v) else v
-                row_str += f", {v_reduced}"
+            row_str += f", '{v}'"
         self.query(f"INSERT INTO {table_name} VALUES ({row_str})")
         return id
 
-    def getTopicTables(
-        self,
-    ):
-        res = self.query("SHOW TABLES")
-        return [r[0] for r in res if r[0] not in ["subl", "publ"]]
-
-    def Count(self, table_name):
-        res = self.query(f"SELECT count(id) AS count FROM {table_name}")
-        return res[0]["count"]
