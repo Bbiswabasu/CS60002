@@ -16,6 +16,7 @@ class Server:
 
     def __init__(self,id):
         self.server_id=id
+        self.shardsToDB={}
     
     def addShard(self,shard_id):
         self.shardsToDB[shard_id]="Database Instance"
@@ -46,6 +47,8 @@ class ServerMap:
     def __new__(self):
         if not self._instance:
             self._instance = super(ServerMap, self).__new__(self)
+            self.nameToIdMap={}
+            self.idToServer={}
 
         return self._instance
     
@@ -100,7 +103,6 @@ class Shard:
     VIRTUAL_INSTANCE = 9
 
     hashRing = []
-    serverMap = []
 
     def __init__(self,shard_id,student_id_low,shard_size):
         self.shard_id=shard_id
@@ -149,6 +151,8 @@ class ShardMap:
     def __new__(self):
         if not self._instance:
             self._instance = super(ShardMap, self).__new__(self)
+            self.nameToIdMap={}
+            self.idToShard={}
 
         return self._instance
     
@@ -228,17 +232,14 @@ def init():
         serverMap.addServer(server_name)
         
         server_id=serverMap.getIdFromName(server_name)
+        
 
         for shard in shards:
             shardMap.addServerToShard(shard,server_id)
-    
+
             shard_id=shardMap.getIdFromName(shard)
-
+            
             serverMap.addShardToServer(server_id,shard_id)
-
-    
-    # print(shardMap)
-    # print(serverMap)
     
 
     response={
@@ -257,9 +258,7 @@ def status():
 
     shards=shardMap.getStatus()
     servers=serverMap.getStatus()
-    
-    print(shards)
-    print(servers)
+
     newServers={}
 
     for key,value in servers.items():
@@ -286,21 +285,15 @@ def add():
     for shard in payload['new_shards']:
         shardMap.addShard(shard)
     
-    print(shardMap)
-    # print(serverMap)
     for server_name,shards in payload['servers'].items():
         serverMap.addServer(server_name)
         
         server_id=serverMap.getIdFromName(server_name)
         
-        print(server_name)
         for shard in shards:
             shardMap.addServerToShard(shard,server_id)
-            print(shard)
             shard_id=shardMap.getIdFromName(shard)
-            print(shard_id)
             serverMap.addShardToServer(server_id,shard_id)
-        print("---------")
     response={}
 
     response["N"]=serverMap.getServersCount()
