@@ -1,9 +1,11 @@
 from flask import Flask, jsonify, request
 import uuid
+import requests
 import os
-
+import time
 
 app = Flask(__name__)
+
 
 def generate_random_id():
     unique_id = uuid.uuid4()
@@ -27,24 +29,24 @@ class Server:
             self.shards.append(shard_id)
     
     def getStatus(self):
-        res=[]
+        res = []
         for key in self.shardsToDB:
             res.append(key)
-        
+
         return res
-    
+
     def __str__(self):
-        res=f"server_id - {self.server_id}\n"
+        res = f"server_id - {self.server_id}\n"
 
-        for key,value in self.shardsToDB.items():
-            res+=f"{key} - {value}\n"
-        res+="]\n"
+        for key, value in self.shardsToDB.items():
+            res += f"{key} - {value}\n"
+        res += "]\n"
         return res
 
-        
+
 class ServerMap:
 
-    _instance=None
+    _instance = None
 
     nameToIdMap={}
     idToNameMap={}
@@ -58,18 +60,18 @@ class ServerMap:
             self.idToServer={}
 
         return self._instance
-    
+
     def getServersCount(self):
         return len(self.nameToIdMap)
-    
-    def addServer(self,server_name):
-        unique_id=generate_random_id()
-        self.nameToIdMap[server_name]=unique_id
+
+    def addServer(self, server_name):
+        unique_id = generate_random_id()
+        self.nameToIdMap[server_name] = unique_id
         self.idToNameMap[unique_id]=server_name
-        self.idToServer[unique_id]=Server(unique_id)
-    
-    def addShardToServer(self,server_id,shard_id):
-        server=self.idToServer[server_id]
+        self.idToServer[unique_id] = Server(unique_id)
+
+    def addShardToServer(self, server_id, shard_id):
+        server = self.idToServer[server_id]
         server.addShard(shard_id)
     
     def removeServer(self,server_id):
@@ -100,73 +102,71 @@ class ServerMap:
             raise e
         
 
-    def getIdFromName(self,server_name):
+    def getIdFromName(self, server_name):
         return self.nameToIdMap[server_name]
-    
+
     def getStatus(self):
-        res={}
+        res = {}
 
-        for key,value in self.nameToIdMap.items():
-            res[key]=self.idToServer[value].getStatus()
-        
+        for key, value in self.nameToIdMap.items():
+            res[key] = self.idToServer[value].getStatus()
+
         return res
-    
+
     def __str__(self):
-        res="NameToIDMap - [ \n "
+        res = "NameToIDMap - [ \n "
 
-        for key,value in self.nameToIdMap.items():
-            res+=f"{key} - {value} \n"
-        
-        res+="]\n"
-        
-        
-        res+="IDToServer - [\n"
+        for key, value in self.nameToIdMap.items():
+            res += f"{key} - {value} \n"
 
-        for key,value in self.idToServer.items():
-            res+=f"{key} - {value.__str__()}\n"
-        
-        res+="]\n"
+        res += "]\n"
+
+        res += "IDToServer - [\n"
+
+        for key, value in self.idToServer.items():
+            res += f"{key} - {value.__str__()}\n"
+
+        res += "]\n"
         return res
 
-    
+
 class Shard:
-    
-    shard_id=-1
-    student_id_low=-1
-    shard_size=0
+
+    shard_id = -1
+    student_id_low = -1
+    shard_size = 0
 
     RING_SIZE = 512
     VIRTUAL_INSTANCE = 9
 
     hashRing = []
 
-    def __init__(self,shard_id,student_id_low,shard_size):
-        self.shard_id=shard_id
-        self.student_id_low=student_id_low
-        self.shard_size=shard_size
+    def __init__(self, shard_id, student_id_low, shard_size):
+        self.shard_id = shard_id
+        self.student_id_low = student_id_low
+        self.shard_size = shard_size
         self.hashRing = [-1 for _ in range(self.RING_SIZE)]
-    
+
     def getStudentIdLow(self):
         return self.student_id_low
-    
+
     def getShardSize(self):
         return self.shard_size
 
-    
     def request_hash(self, i):
         return (i**2 + 2 * i + 17) % self.RING_SIZE
 
     def virtual_server_hash(self, i, j):
         return (i**2 + j**2 + 2 * j + 25) % self.RING_SIZE
 
-    def vacantRingSpot(self,virtual_hash):
+    def vacantRingSpot(self, virtual_hash):
         while self.hashRing[virtual_hash] >= 0:
             virtual_hash += 1
             virtual_hash %= self.RING_SIZE
 
         return virtual_hash
-    
-    def addServer(self,server_id):
+
+    def addServer(self, server_id):
         for loop in range(0, self.VIRTUAL_INSTANCE):
             virtual_hash = self.virtual_server_hash(server_id, loop + 1)
             emptyRingSpot=self.vacantRingSpot(virtual_hash)
@@ -184,46 +184,48 @@ class Shard:
     def __str__(self):
         return f'shard_id - {self.shard_id} \n student_id_low - {self.student_id_low} \n shard_size - {self.shard_size}'
 
+    def __str__(self):
+        return f"shard_id - {self.shard_id} \n student_id_low - {self.student_id_low} \n shard_size - {self.shard_size}"
 
 
 class ShardMap:
 
-    _instance=None
+    _instance = None
 
-    nameToIdMap={}
-    idToShard={}
+    nameToIdMap = {}
+    idToShard = {}
 
     def __new__(self):
         if not self._instance:
             self._instance = super(ShardMap, self).__new__(self)
-            self.nameToIdMap={}
-            self.idToShard={}
+            self.nameToIdMap = {}
+            self.idToShard = {}
 
         return self._instance
-    
-    def getIdFromName(self,shard_name):
+
+    def getIdFromName(self, shard_name):
         return self.nameToIdMap[shard_name]
-    
-    def getNameFromId(self,shard_id):
-        
-        for key,value in self.nameToIdMap.items():
-            if shard_id==value:
+
+    def getNameFromId(self, shard_id):
+
+        for key, value in self.nameToIdMap.items():
+            if shard_id == value:
                 return key
-            
+
         return "NA Shard"
 
-    def addShard(self,shard):
-        shard_name=shard['Shard_id']
-        student_id_low=shard['Stud_id_low']
-        shard_size=shard['Shard_size']
+    def addShard(self, shard):
+        shard_name = shard["Shard_id"]
+        student_id_low = shard["Stud_id_low"]
+        shard_size = shard["Shard_size"]
 
-        unique_id=generate_random_id()
-        self.nameToIdMap[shard_name]=unique_id
-        self.idToShard[unique_id]=Shard(unique_id,student_id_low,shard_size)
-    
-    def addServerToShard(self,shard_name,server_id):
-        shard_id=self.nameToIdMap[shard_name]
-        shard=self.idToShard[shard_id]
+        unique_id = generate_random_id()
+        self.nameToIdMap[shard_name] = unique_id
+        self.idToShard[unique_id] = Shard(unique_id, student_id_low, shard_size)
+
+    def addServerToShard(self, shard_name, server_id):
+        shard_id = self.nameToIdMap[shard_name]
+        shard = self.idToShard[shard_id]
 
         shard.addServer(server_id)
         
@@ -237,129 +239,169 @@ class ShardMap:
                 self.idToShard.pop(shard_id)
     
     def getStatus(self):
-        
-        res=[]
-        for key,value in self.nameToIdMap.items():
 
-            currRes={
-                "Shard_id":key,
-                "Stud_id_low":self.idToShard[value].getStudentIdLow(),
-                "Shard_size":self.idToShard[value].getShardSize()
+        res = []
+        for key, value in self.nameToIdMap.items():
+
+            currRes = {
+                "Shard_id": key,
+                "Stud_id_low": self.idToShard[value].getStudentIdLow(),
+                "Shard_size": self.idToShard[value].getShardSize(),
             }
 
             res.append(currRes)
-        
+
         return res
-         
+
     def __str__(self):
-        res="NameToID - [\n "
+        res = "NameToID - [\n "
 
-        for key,value in self.nameToIdMap.items():
-            res+=f"{key} - {value},\n "
-        res+=" ] \n"
-        
-        res+="IDToShard - [ \n"
+        for key, value in self.nameToIdMap.items():
+            res += f"{key} - {value},\n "
+        res += " ] \n"
 
-        for key,value in self.idToShard.items():
-            res+=f"{key} - {value.__str__()}, \n"
-        
-        res+=" ] \n"
-        
+        res += "IDToShard - [ \n"
+
+        for key, value in self.idToShard.items():
+            res += f"{key} - {value.__str__()}, \n"
+
+        res += " ] \n"
+
         return res
 
 
+schema = None
 
 
-@app.route("/init",methods=["POST"])
+@app.route("/init", methods=["POST"])
 def init():
-    payload=request.json
-    
-    shardMap=ShardMap()
-    serverMap=ServerMap()
+    payload = request.json
 
+    shardMap = ShardMap()
+    serverMap = ServerMap()
 
-    for shard in payload['shards']:
+    global schema
+    schema = payload["schema"]
+
+    for shard in payload["shards"]:
         shardMap.addShard(shard)
-    
-    for server_name,shards in payload['servers'].items():
-        serverMap.addServer(server_name)
-        
-        server_id=serverMap.getIdFromName(server_name)
-        
 
-        for shard in shards:
-            shardMap.addServerToShard(shard,server_id)
+    for server_name, shards in payload["servers"].items():
+        try:
+            res = os.popen(
+                f"sudo docker run --platform linux/x86_64 --name {server_name} --network pub --network-alias {server_name} -d ds_server:latest"
+            ).read()
 
-            shard_id=shardMap.getIdFromName(shard)
-            
-            serverMap.addShardToServer(server_id,shard_id)
-    
+            if len(res) == 0:
+                raise
 
-    response={
-        "message":"Configured Database",
-        "status":"success"
-    }
+            serverMap.addServer(server_name)
+            server_id = serverMap.getIdFromName(server_name)
 
-    return response,200
+            shard_ids = []
+            for shard in shards:
+                shardMap.addServerToShard(shard, server_id)
+                shard_id = shardMap.getIdFromName(shard)
+                serverMap.addShardToServer(server_id, shard_id)
+                shard_ids.append(shard)
+
+            req_body = {"schema": schema, "shards": shard_ids}
+            while True:
+                try:
+                    res = requests.post(
+                        f"http://{server_name}:5000/config", json=req_body
+                    )
+                    break
+                except Exception as e:
+                    print(e)
+                    time.sleep(3)
+
+        except Exception as e:
+            print(e)
+
+    response = {"message": "Configured Database", "status": "success"}
+
+    return response, 200
 
 
-@app.route("/status",methods=["GET"])
+@app.route("/status", methods=["GET"])
 def status():
-    
-    serverMap=ServerMap()
-    shardMap=ShardMap()
 
-    shards=shardMap.getStatus()
-    servers=serverMap.getStatus()
+    serverMap = ServerMap()
+    shardMap = ShardMap()
 
-    newServers={}
+    shards = shardMap.getStatus()
+    servers = serverMap.getStatus()
 
-    for key,value in servers.items():
-        shardNames=[]
+    newServers = {}
+
+    for key, value in servers.items():
+        shardNames = []
         for shardId in value:
             shardNames.append(shardMap.getNameFromId(shardId))
-        
-        newServers[key]=shardNames
 
-    response={
-        "shards":shards,
-        "servers":newServers
-    }
+        newServers[key] = shardNames
 
-    return response,200
+    response = {"shards": shards, "servers": newServers}
 
-@app.route("/add",methods=["POST"])
+    return response, 200
+
+
+@app.route("/add", methods=["POST"])
 def add():
-    payload=request.json
+    payload = request.json
 
-    serverMap=ServerMap()
-    shardMap=ShardMap()
+    serverMap = ServerMap()
+    shardMap = ShardMap()
 
-    for shard in payload['new_shards']:
+    for shard in payload["new_shards"]:
         shardMap.addShard(shard)
-    
-    for server_name,shards in payload['servers'].items():
-        serverMap.addServer(server_name)
-        
-        server_id=serverMap.getIdFromName(server_name)
-        
-        for shard in shards:
-            shardMap.addServerToShard(shard,server_id)
-            shard_id=shardMap.getIdFromName(shard)
-            serverMap.addShardToServer(server_id,shard_id) 
-    
-    message="Added "
-    for server in payload["servers"]:
-        message+=f"{server}, "
-    message+="successfully"
-    
-    response={
-        "N": serverMap.getServersCount(),
-        "message": message,
-        "status": "successful"
-    }
 
-    return response,200
+    for server_name, shards in payload["servers"].items():
+        try:
+            res = os.popen(
+                f"sudo docker run --platform linux/x86_64 --name {server_name} --network pub --network-alias {server_name} -d ds_server:latest"
+            ).read()
+
+            if len(res) == 0:
+                raise
+
+            serverMap.addServer(server_name)
+
+            server_id = serverMap.getIdFromName(server_name)
+
+            shard_ids = []
+            for shard in shards:
+                shardMap.addServerToShard(shard, server_id)
+                shard_id = shardMap.getIdFromName(shard)
+                serverMap.addShardToServer(server_id, shard_id)
+                shard_ids.append(shard)
+            req_body = {"schema": schema, "shards": shard_ids}
+            while True:
+                try:
+                    res = requests.post(
+                        f"http://{server_name}:5000/config", json=req_body
+                    )
+                    break
+                except Exception as e:
+                    print(e)
+                    time.sleep(3)
+
+        except Exception as e:
+            print(e)
+    response = {}
+
+    response["N"] = serverMap.getServersCount()
+
+    message = "Added "
+    for server in payload["servers"]:
+        message += f"{server}, "
+    message += "successfully"
+
+    response["message"] = message
+    response["status"] = "successfull"
+
+    return response, 200
     
 @app.route("/rm",methods=["DELETE"])
 def remove():
@@ -411,4 +453,4 @@ def remove():
         return jsonify(response), 400
 
 if __name__ == "__main__":
-    app.run(debug=True,host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5000)
