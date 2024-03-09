@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+import threading
 import uuid
 
 
@@ -7,6 +8,26 @@ app = Flask(__name__)
 def generate_random_id():
     unique_id = uuid.uuid4()
     return int(unique_id.int)
+
+class MultiLockDict:
+    _instance=None
+
+    def __new__(self):
+        if not self._instance:
+            self._instance = super(MultiLockDict, self).__new__(self)
+            self.lock_dict = {}
+            self.global_lock = threading.Lock()
+
+        return self._instance
+
+    def acquire_lock(self, key):
+        with self.global_lock:
+            if key not in self.lock_dict:
+                self.lock_dict[key] = threading.Lock()
+        self.lock_dict[key].acquire()
+
+    def release_lock(self, key):
+        self.lock_dict[key].release()
 
 
 class Server:
@@ -21,6 +42,11 @@ class Server:
     def addShard(self,shard_id):
         self.shardsToDB[shard_id]="Database Instance"
     
+    def insertData(self,shard_id,data):
+        ## Implement the inserting logic
+        print(shard_id,data)
+        print("-------")
+
     def getData(self,shard_id,id_limits):
         ## Implement the logic
 
@@ -90,6 +116,11 @@ class ServerMap:
         
         return res
     
+    def insertBulkData(self,serversList,shard_id,data):
+        for server_id in serversList:
+            server=self.idToServer[server_id]
+            server.insertData(shard_id,data)
+
     def __str__(self):
         res="NameToIDMap - [ \n "
 
@@ -168,7 +199,16 @@ class Shard:
             mapped_index%=self.RING_SIZE
         
         return self.hashRing[mapped_index]
+
+    def getAllServers(self):
+
+        serversDict={}
+        for server_id in self.hashRing:
+            if server_id>=0:
+                serversDict[server_id]=1
         
+        return list(serversDict.keys())
+
     def __str__(self):
         return f'shard_id - {self.shard_id} \n student_id_low - {self.student_id_low} \n shard_size - {self.shard_size}'
 
@@ -192,6 +232,20 @@ class ShardMap:
     def getIdFromName(self,shard_name):
         return self.nameToIdMap[shard_name]
     
+    def getAllServersFromShardId(self,shard_id):
+        return self.idToShard[shard_id].getAllServers()
+    
+    def getShardIdFromStudId(self,student_id):
+
+        for shard_id,shard in self.idToShard.items():
+            id_limits={
+                "low":student_id,
+                "high":student_id
+            }
+
+            if shard.isDataPresent(id_limits):
+                return shard_id
+            
     def getNameFromId(self,shard_id):
         
         for key,value in self.nameToIdMap.items():
@@ -405,6 +459,44 @@ def read():
         response["shards_queried"].append(shardMap.getNameFromId(shardFragment["shard_id"]))
     
     return response,200
+
+@app.route("/write",methods=["POST"])
+def write():
+    payload=request.json
+
+    shardWiseData={}
+    
+    shardMap=ShardMap()
+    serverMap=ServerMap()
+
+    for data in payload["data"]:
+        shard_id=shardMap.getShardIdFromStudId(data["Stud_id"])
+
+        if shard_id not in shardWiseData:
+            shardWiseData[shard_id]=[data]
+        else:
+            shardWiseData[shard_id].append(data)
+    
+    multi_lock_dict = MultiLockDict()
+
+    for shard_id,data in shardWiseData.items():
+
+        multi_lock_dict.acquire_lock(shard_id)
+
+        try:
+            serversList=shardMap.getAllServersFromShardId(shard_id)
+            serverMap.insertBulkData(serversList,shard_id,data)
+        except:
+            multi_lock_dict.release_lock(shard_id)
+    
+    response={
+        "message":f"{len(payload['data'])} Data entries added",
+        "status":"success"
+    }
+
+    return response,200
+
+
 
 if __name__ == "__main__":
     app.run(debug=True,host="0.0.0.0", port=5000)
