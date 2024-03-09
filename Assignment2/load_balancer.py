@@ -21,6 +21,15 @@ class Server:
     def addShard(self,shard_id):
         self.shardsToDB[shard_id]="Database Instance"
     
+    def getData(self,shard_id,id_limits):
+        ## Implement the logic
+
+        return [
+            {"Stud_id":1000,"Stud_name":"PQR","Stud_marks":23},
+            {"Stud_id":1001,"Stud_name":"STV","Stud_marks":22},
+            {"Stud_id":8888,"Stud_name":"ZQN","Stud_marks":65},
+            {"Stud_id":8889,"Stud_name":"BYHS","Stud_marks":76}
+        ]
     def getStatus(self):
         res=[]
         for key in self.shardsToDB:
@@ -67,6 +76,12 @@ class ServerMap:
     def getIdFromName(self,server_name):
         return self.nameToIdMap[server_name]
     
+    def getData(self,shardFragment,id_limits):
+
+        server=self.idToServer[shardFragment["server_id"]]
+
+        return server.getData(shardFragment["shard_id"],id_limits)
+    
     def getStatus(self):
         res={}
 
@@ -110,6 +125,15 @@ class Shard:
         self.shard_size=shard_size
         self.hashRing = [-1 for _ in range(self.RING_SIZE)]
     
+    def isDataPresent(self,id_limits):
+        id_low=self.student_id_low
+        id_high=self.student_id_low+self.shard_size
+
+        if id_low>id_limits['high'] or id_high<id_limits['low']:
+            return False
+        
+        return True
+    
     def getStudentIdLow(self):
         return self.student_id_low
     
@@ -136,6 +160,15 @@ class Shard:
             emptyRingSpot=self.vacantRingSpot(virtual_hash)
             self.hashRing[emptyRingSpot]=server_id
     
+    def getLoadBalancedServerId(self,request_id):
+        mapped_index=request_id%self.RING_SIZE
+
+        while self.hashRing[mapped_index]<0:
+            mapped_index+=1
+            mapped_index%=self.RING_SIZE
+        
+        return self.hashRing[mapped_index]
+        
     def __str__(self):
         return f'shard_id - {self.shard_id} \n student_id_low - {self.student_id_low} \n shard_size - {self.shard_size}'
 
@@ -197,7 +230,22 @@ class ShardMap:
             res.append(currRes)
         
         return res
-         
+
+    def getShardFragments(self,id_limits):
+        
+        shardFragments=[]
+
+        for shard_id,shard in self.idToShard.items():
+            if shard.isDataPresent(id_limits):
+                request_id=generate_random_id()
+                shardFragment={
+                    "shard_id":shard_id,
+                    "server_id":shard.getLoadBalancedServerId(request_id)
+                }
+                shardFragments.append(shardFragment)
+        
+        return shardFragments
+
     def __str__(self):
         res="NameToID - [\n "
 
@@ -277,40 +325,86 @@ def status():
 
 @app.route("/add",methods=["POST"])
 def add():
+    try:
+        payload=request.json
+
+        serverMap=ServerMap()
+        shardMap=ShardMap() 
+        
+        if payload['n']>len(payload['servers']):
+            raise Exception(
+             "<Error> Number of new servers (n) is greater than newly added instances"
+            )
+        
+        for shard in payload['new_shards']:
+            shardMap.addShard(shard)
+        
+        addedServerNames=[]
+
+        for server_name,shards in payload['servers'].items():
+             
+            if "[" in server_name:
+                server_name=f"Server{generate_random_id()%10000}"
+
+            addedServerNames.append(server_name)
+
+            serverMap.addServer(server_name)
+            
+            server_id=serverMap.getIdFromName(server_name)
+            
+            for shard in shards:
+                shardMap.addServerToShard(shard,server_id)
+                shard_id=shardMap.getIdFromName(shard)
+                serverMap.addShardToServer(server_id,shard_id)
+        response={}
+
+        response["N"]=serverMap.getServersCount()
+        
+        message="Added "
+        for server in addedServerNames:
+            message+=f"{server}, "
+        message+="successfully"
+
+        response["message"]=message
+        response["status"]="successfull"
+
+        return response,200
+    except Exception as e:
+        response={
+            "message":str(e),
+            "status":"failure"
+        }
+
+        return response,400
+        
+
+@app.route("/read",methods=["GET"])
+def read():
     payload=request.json
 
-    serverMap=ServerMap()
     shardMap=ShardMap()
-
-    for shard in payload['new_shards']:
-        shardMap.addShard(shard)
+    shardFragments=shardMap.getShardFragments(payload["Stud_id"])
     
-    for server_name,shards in payload['servers'].items():
-        serverMap.addServer(server_name)
-        
-        server_id=serverMap.getIdFromName(server_name)
-        
-        for shard in shards:
-            shardMap.addServerToShard(shard,server_id)
-            shard_id=shardMap.getIdFromName(shard)
-            serverMap.addShardToServer(server_id,shard_id)
-    response={}
-
-    response["N"]=serverMap.getServersCount()
+    result=[]
     
-    message="Added "
-    for server in payload["servers"]:
-        message+=f"{server}, "
-    message+="successfully"
+    serverMap=ServerMap()
 
-    response["message"]=message
-    response["status"]="successfull"
+    for shardFragment in shardFragments:
+        data=serverMap.getData(shardFragment,payload['Stud_id'])
+        for _ in data:
+            result.append(_)
+            
 
+    response={
+        "shards_queried":[],
+        "data":result,
+        "status":"success"
+    }
+
+    for shardFragment in shardFragments:
+        response["shards_queried"].append(shardMap.getNameFromId(shardFragment["shard_id"]))
+    
     return response,200
-    
-
-
-
 
 if __name__ == "__main__":
     app.run(debug=True,host="0.0.0.0", port=5000)
