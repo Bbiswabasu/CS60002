@@ -47,6 +47,13 @@ class Server:
 
         print(shard_id,data)
         print("--------")
+    
+    def delData(self,shard_id,stud_id):
+
+        ## Implement the deleting logic
+
+        print(shard_id,stud_id)
+        print("------")
 
     def insertData(self,shard_id,data):
         ## Implement the inserting logic
@@ -132,6 +139,11 @@ class ServerMap:
             server=self.idToServer[server_id]
             server.updateData(shard_id,data)
     
+    def delData(self,serversList,shard_id,stud_id):
+        for server_id in serversList:
+            server=self.idToServer[server_id]
+            server.delData(shard_id,stud_id)
+
     def __str__(self):
         res="NameToIDMap - [ \n "
 
@@ -532,6 +544,30 @@ def update():
 
     return response,200
 
+@app.route("/del",methods=["DELETE"])
+def delete():
+    payload=request.json
+    
+    shardMap=ShardMap()
+    serverMap=ServerMap()
+
+    shard_id=shardMap.getShardIdFromStudId(payload["Stud_id"])
+    
+    multi_lock_dict = MultiLockDict()
+    multi_lock_dict.acquire_lock(shard_id)
+
+    try:
+        serversList=shardMap.getAllServersFromShardId(shard_id)
+        serverMap.delData(serversList,shard_id,payload["Stud_id"])
+    except:
+        multi_lock_dict.release_lock(shard_id)
+    
+    response={
+        "message":f"Data entry for Stud_id - {payload['Stud_id']} removed from all replicas",
+        "status":"success"
+    }
+
+    return response,200
 
 
 
