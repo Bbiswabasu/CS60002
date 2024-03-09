@@ -14,16 +14,20 @@ def generate_random_id():
 
 class Server:
 
-    shardsToDB = {}
-    server_id = -1
+    shardsToDB={}
+    shards=[]
+    server_id=-1
 
-    def __init__(self, id):
-        self.server_id = id
-        self.shardsToDB = {}
-
-    def addShard(self, shard_id):
-        self.shardsToDB[shard_id] = "Database Instance"
-
+    def __init__(self,id):
+        self.server_id=id
+        self.shardsToDB={}
+        self.shards=[]
+    
+    def addShard(self,shard_id):
+        self.shardsToDB[shard_id]="Database Instance"
+        if shard_id not in self.shards:
+            self.shards.append(shard_id)
+    
     def getStatus(self):
         res = []
         for key in self.shardsToDB:
@@ -44,14 +48,16 @@ class ServerMap:
 
     _instance = None
 
-    nameToIdMap = {}
-    idToServer = {}
+    nameToIdMap={}
+    idToNameMap={}
+    idToServer={}
 
     def __new__(self):
         if not self._instance:
             self._instance = super(ServerMap, self).__new__(self)
-            self.nameToIdMap = {}
-            self.idToServer = {}
+            self.nameToIdMap={}
+            self.idToNameMap={}
+            self.idToServer={}
 
         return self._instance
 
@@ -61,11 +67,40 @@ class ServerMap:
     def addServer(self, server_name):
         unique_id = generate_random_id()
         self.nameToIdMap[server_name] = unique_id
+        self.idToNameMap[unique_id]=server_name
         self.idToServer[unique_id] = Server(unique_id)
 
     def addShardToServer(self, server_id, shard_id):
         server = self.idToServer[server_id]
         server.addShard(shard_id)
+    
+    def removeServer(self,server_id):
+        try:
+            server=self.idToServer[server_id]
+            server_name=self.idToNameMap[server_id]
+            
+            res = os.popen(
+                f"sudo docker stop {server_name} && sudo docker rm {server_name}"
+            ).read()
+            
+            if len(res) == 0:
+                raise Exception(
+                    "<ERROR> Container could not be stopped!"
+                )
+                        
+            shardList = []
+            for shard in server.shards:
+                shardList.append(shard)
+            
+            del server
+            self.idToServer.pop(server_id)
+            self.idToNameMap.pop(server_id)
+            self.nameToIdMap.pop(server_name)
+            
+            return shardList
+        except Exception as e:
+            raise e
+        
 
     def getIdFromName(self, server_name):
         return self.nameToIdMap[server_name]
@@ -134,8 +169,20 @@ class Shard:
     def addServer(self, server_id):
         for loop in range(0, self.VIRTUAL_INSTANCE):
             virtual_hash = self.virtual_server_hash(server_id, loop + 1)
-            emptyRingSpot = self.vacantRingSpot(virtual_hash)
-            self.hashRing[emptyRingSpot] = server_id
+            emptyRingSpot=self.vacantRingSpot(virtual_hash)
+            self.hashRing[emptyRingSpot]=server_id
+    
+    def removeServer(self,server_id):
+        for idx in range(len(self.hashRing)):
+            if self.hashRing[idx]==server_id:
+                self.hashRing[idx]=-1
+        
+        if self.hashRing.count(-1) == len(self.hashRing):
+            return False
+        return True
+    
+    def __str__(self):
+        return f'shard_id - {self.shard_id} \n student_id_low - {self.student_id_low} \n shard_size - {self.shard_size}'
 
     def __str__(self):
         return f"shard_id - {self.shard_id} \n student_id_low - {self.student_id_low} \n shard_size - {self.shard_size}"
@@ -181,7 +228,16 @@ class ShardMap:
         shard = self.idToShard[shard_id]
 
         shard.addServer(server_id)
-
+        
+    def removeServerFromShard(self,shardList,server_id):
+        for shard_id in shardList:
+            shard=self.idToShard[shard_id]
+            
+            res = shard.removeServer(server_id)
+            if not res:
+                self.nameToIdMap.pop(self.getNameFromId(shard_id))
+                self.idToShard.pop(shard_id)
+    
     def getStatus(self):
 
         res = []
@@ -346,7 +402,55 @@ def add():
     response["status"] = "successfull"
 
     return response, 200
+    
+@app.route("/rm",methods=["DELETE"])
+def remove():
+    try:
+        payload = request.json
+        
+        serverMap=ServerMap()
+        shardMap=ShardMap()
+        if payload["n"] < len(payload["servers"]):
+            raise Exception(
+                "<ERROR> Number of server names should be less than or equal to the number of instances to be removed"
+            )
+        
+        serversToDel = []
+        serversToDelNames = []
+        
+        for serverName,serverId in serverMap.nameToIdMap.items():
+            if serverName in payload["servers"]:
+                serversToDel.append(serverId)
+                serversToDelNames.append(serverName)
+        
+        
+        for serverName,serverId in serverMap.nameToIdMap.items():
+            if len(serversToDel) == payload["n"]:
+                break
+            
+            if serverName not in serversToDel:
+                serversToDel.append(serverId)
+                serversToDelNames.append(serverName)
 
+        for serverId in serversToDel:
+            shardList = serverMap.removeServer(serverId)
+            shardMap.removeServerFromShard(shardList,serverId)
+        
+        response = {
+            "message":{
+                "N": payload["n"],
+                "servers": serversToDelNames
+            },
+            "status": "successful"
+        }
+        return jsonify(response),200
+    
+    except Exception as e:
+        response = {
+            "message": str(e),
+            "status": "failure"
+        }
+        return jsonify(response), 400
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
