@@ -42,6 +42,12 @@ class Server:
     def addShard(self,shard_id):
         self.shardsToDB[shard_id]="Database Instance"
     
+    def updateData(self,shard_id,data):
+        ## Implement the updating logic
+
+        print(shard_id,data)
+        print("--------")
+
     def insertData(self,shard_id,data):
         ## Implement the inserting logic
         print(shard_id,data)
@@ -120,7 +126,12 @@ class ServerMap:
         for server_id in serversList:
             server=self.idToServer[server_id]
             server.insertData(shard_id,data)
-
+    
+    def updateData(self,serversList,shard_id,data):
+        for server_id in serversList:
+            server=self.idToServer[server_id]
+            server.updateData(shard_id,data)
+    
     def __str__(self):
         res="NameToIDMap - [ \n "
 
@@ -495,6 +506,32 @@ def write():
     }
 
     return response,200
+
+@app.route("/update",methods=["PUT"])
+def update():
+    payload=request.json
+    
+    shardMap=ShardMap()
+    serverMap=ServerMap()
+
+    shard_id=shardMap.getShardIdFromStudId(payload["Stud_id"])
+    
+    multi_lock_dict = MultiLockDict()
+    multi_lock_dict.acquire_lock(shard_id)
+
+    try:
+        serversList=shardMap.getAllServersFromShardId(shard_id)
+        serverMap.updateData(serversList,shard_id,payload["data"])
+    except:
+        multi_lock_dict.release_lock(shard_id)
+    
+    response={
+        "message":f"Data entry for Stud_id - {payload['Stud_id']} updated",
+        "status":"success"
+    }
+
+    return response,200
+
 
 
 
