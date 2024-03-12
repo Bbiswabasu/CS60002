@@ -12,6 +12,7 @@ def generate_random_id():
     unique_id = uuid.uuid4()
     return int(unique_id.int)
 
+
 class MultiLockDict:
     _instance = None
 
@@ -153,21 +154,21 @@ class ServerMap:
 
     def getIdFromName(self, server_name):
         return self.nameToIdMap[server_name]
-    
-    def getNameFromId(self,server_id):
+
+    def getNameFromId(self, server_id):
         return self.idToNameMap[server_id]
-    
+
     def getData(self, shardFragment, id_limits):
 
         server = self.idToServer[shardFragment["server_id"]]
-        
+
         return server.getData(shardFragment["shard_id"], id_limits)
 
-    def getStatus(self,server_id=None):
+    def getStatus(self, server_id=None):
 
         if server_id is not None:
             return self.idToServer[server_id].getStatus()
-        
+
         else:
             res = {}
 
@@ -175,8 +176,7 @@ class ServerMap:
                 res[key] = self.idToServer[value].getStatus()
 
             return res
-    
-    
+
     def insertBulkData(self, serversList, shard_id, data):
         for server_id in serversList:
             server = self.idToServer[server_id]
@@ -262,7 +262,7 @@ class Shard:
 
     def getLoadBalancedServerId(self, request_id):
         mapped_index = request_id % self.RING_SIZE
-        st_index=mapped_index
+        st_index = mapped_index
 
         while True:
             if self.hashRing[mapped_index] < 0:
@@ -271,11 +271,11 @@ class Shard:
             else:
                 return self.hashRing[mapped_index]
 
-            if mapped_index==st_index:
+            if mapped_index == st_index:
                 break
 
         return -1
-    
+
     def removeServer(self, server_id):
         for idx in range(len(self.hashRing)):
             if self.hashRing[idx] == server_id:
@@ -297,9 +297,6 @@ class Shard:
     def __str__(self):
         return f"shard_id - {self.shard_id} \n student_id_low - {self.student_id_low} \n shard_size - {self.shard_size}"
 
-    def __str__(self):
-        return f"shard_id - {self.shard_id} \n student_id_low - {self.student_id_low} \n shard_size - {self.shard_size}"
-
 
 class ShardMap:
 
@@ -315,12 +312,12 @@ class ShardMap:
             self.idToShard = {}
 
         return self._instance
-    
-    def getLoadBalancedServerForShard(self,shard_name):
-        shard_id=self.nameToIdMap[shard_name]
-        request_id=generate_random_id()
+
+    def getLoadBalancedServerForShard(self, shard_name):
+        shard_id = self.nameToIdMap[shard_name]
+        request_id = generate_random_id()
         return self.idToShard[shard_id].getLoadBalancedServerId(request_id)
-    
+
     def getIdFromName(self, shard_name):
         return self.nameToIdMap[shard_name]
 
@@ -347,7 +344,7 @@ class ShardMap:
         shard_name = shard["Shard_id"]
         student_id_low = shard["Stud_id_low"]
         shard_size = shard["Shard_size"]
-        
+
         if shard_name not in self.nameToIdMap:
             unique_id = generate_random_id()
             self.nameToIdMap[shard_name] = unique_id
@@ -390,7 +387,7 @@ class ShardMap:
         for shard_id, shard in self.idToShard.items():
             if shard.isDataPresent(id_limits):
                 request_id = generate_random_id()
-                
+
                 shardFragment = {
                     "shard_id": shard_id,
                     "server_id": shard.getLoadBalancedServerId(request_id),
@@ -508,57 +505,37 @@ def add():
 
         for shard in payload["new_shards"]:
             shardMap.addShard(shard)
-         
+
         addedServerNames = []
-        
-        
-        # print("LINE 514",flush=True)
         for server_name, shards in payload["servers"].items():
             try:
                 if "[" in server_name:
-                    server_name=f"Server{generate_random_id()%10000}"
-                
-                # print("LINE 520",flush=True)
-                # print(server_name,flush=True)
-                # print("--------",flush=True)
-                  
+                    server_name = f"Server{generate_random_id()%10000}"
+
                 res = os.popen(
                     f"sudo docker run --platform linux/x86_64 --name {server_name} --network pub --network-alias {server_name} -d ds_server:latest"
                 ).read()
-                
-                # print("LEN res",flush=True)
+
                 if len(res) == 0:
                     raise
-                
-                shardWiseData={}
-                
-                # print("LINE 534",flush=True)
-                # print(shards,flush=True)
+
+                shardWiseData = {}
+
                 for shard in shards:
-                    mapped_server_id=shardMap.getLoadBalancedServerForShard(shard)
-                    # print("LINE 536",flush=True)
-                    # print(f"mapped_server_id - {mapped_server_id}",flush=True)
-                    # print("------------",flush=True)
-                    if mapped_server_id==-1:
+                    mapped_server_id = shardMap.getLoadBalancedServerForShard(shard)
+                    if mapped_server_id == -1:
                         continue
 
-                    mapped_server_name=serverMap.getNameFromId(mapped_server_id)
-                    
-                    # print("LINE 544",flush=True)
-                    # print(f"mapped_server_name - {mapped_server_name}",flush=True)
-                    # print(shard,flush=True)
-                    # print("---------",flush=True)
-                    payload={
-                        "shards":[shard]
-                    }
-                    res=requests.get(f"http://{mapped_server_name}:5000/copy",json=payload)
-                    
-                    # print(mapped_server_name,flush=True)
-                    # print(shard,flush=True)
-                    # print(res.json(),flush=True)
-                    # print("---------",flush=True)
-                    shardWiseData[shard]=res.json()['message']
-
+                    mapped_server_name = serverMap.getNameFromId(mapped_server_id)
+                    payload = {"shards": [shard]}
+                    res = requests.get(
+                        f"http://{mapped_server_name}:5000/copy", json=payload
+                    )
+                    response_data = []
+                    for data in res.json()["message"]:
+                        data.pop("id")
+                        response_data.append(data)
+                    shardWiseData[shard] = response_data
 
                 serverMap.addServer(server_name)
 
@@ -584,10 +561,12 @@ def add():
                     except Exception as e:
                         print(e)
                         time.sleep(3)
-                
+
                 for shard in shards:
-                    serverMap.insertBulkData([server_id],shard_id,shardWiseData[shard])
-                    
+                    shard_id = shardMap.getIdFromName(shard)
+                    serverMap.insertBulkData(
+                        [server_id], shard_id, shardWiseData[shard]
+                    )
 
             except Exception as e:
                 print(e)
@@ -602,7 +581,7 @@ def add():
         message += "successfully"
 
         response["message"] = message
-        response["status"] = "successfull"
+        response["status"] = "successful"
 
         return response, 200
     except Exception as e:
@@ -667,28 +646,25 @@ def read():
 
     for shardFragment in shardFragments:
 
-        server_id=shardFragment['server_id']
-        server_name=serverMap.getNameFromId(server_id)
-        
+        server_id = shardFragment["server_id"]
+        server_name = serverMap.getNameFromId(server_id)
+
         try:
-            res=requests.get(f"http://{server_name}:5000/heartbeat")
+            res = requests.get(f"http://{server_name}:5000/heartbeat")
         except:
-            shardsInServer=serverMap.getStatus(server_id)
-            
-            payload={
-                "n":1,
-                "servers":[server_name]
+            shardsInServer = serverMap.getStatus(server_id)
+
+            payload = {"n": 1, "servers": [server_name]}
+
+            res = requests.delete(f"http://localhost:5000/rm", json=payload)
+
+            payload = {
+                "n": 1,
+                "new_shards": [],
+                "servers": [{server_name: [shardsInServer]}],
             }
 
-            res=requests.delete(f"http://localhost:5000/rm",json=payload)
-            
-            payload={
-                "n":1,
-                "new_shards":[],
-                "servers":[{server_name:[shardsInServer]}]
-            }
-
-            res=requests.post(f"http://localhost:5000/add",json=payload)
+            res = requests.post(f"http://localhost:5000/add", json=payload)
 
         data = serverMap.getData(shardFragment, payload["Stud_id"])
         for _ in data:
@@ -743,29 +719,35 @@ def write():
 
 @app.route("/update", methods=["PUT"])
 def update():
-    payload = request.json
-
-    shardMap = ShardMap()
-    serverMap = ServerMap()
-
-    shard_id = shardMap.getShardIdFromStudId(payload["Stud_id"])
-
-    multi_lock_dict = MultiLockDict()
-
-    multi_lock_dict.acquire_lock(shard_id)
-
     try:
-        serversList = shardMap.getAllServersFromShardId(shard_id)
-        serverMap.updateData(serversList, shard_id, payload["data"])
-    finally:
-        multi_lock_dict.release_lock(shard_id)
+        payload = request.json
 
-    response = {
-        "message": f"Data entry for Stud_id - {payload['Stud_id']} updated",
-        "status": "success",
-    }
+        if payload["Stud_id"] != payload["data"]["Stud_id"]:
+            raise Exception("<ERROR> Student ID does not match!")
 
-    return response, 200
+        shardMap = ShardMap()
+        serverMap = ServerMap()
+
+        shard_id = shardMap.getShardIdFromStudId(payload["Stud_id"])
+
+        multi_lock_dict = MultiLockDict()
+
+        multi_lock_dict.acquire_lock(shard_id)
+
+        try:
+            serversList = shardMap.getAllServersFromShardId(shard_id)
+            serverMap.updateData(serversList, shard_id, payload["data"])
+        finally:
+            multi_lock_dict.release_lock(shard_id)
+
+        response = {
+            "message": f"Data entry for Stud_id - {payload['Stud_id']} updated",
+            "status": "success",
+        }
+        return response, 200
+    except Exception as e:
+        response = {"message": str(e), "status": "failure"}
+        return response, 400
 
 
 @app.route("/del", methods=["DELETE"])

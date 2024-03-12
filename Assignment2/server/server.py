@@ -28,7 +28,7 @@ def copy():
     payload = request.json
     message = []
     for shardName in payload["shards"]:
-        message.append(managers[shardName].copy())
+        message.extend(managers[shardName].copy())
     response = {"message": message, "status": "success"}
     return response, 200
 
