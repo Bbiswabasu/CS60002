@@ -262,13 +262,20 @@ class Shard:
 
     def getLoadBalancedServerId(self, request_id):
         mapped_index = request_id % self.RING_SIZE
+        st_index=mapped_index
 
-        while self.hashRing[mapped_index] < 0:
-            mapped_index += 1
-            mapped_index %= self.RING_SIZE
+        while True:
+            if self.hashRing[mapped_index] < 0:
+                mapped_index += 1
+                mapped_index %= self.RING_SIZE
+            else:
+                return self.hashRing[mapped_index]
 
-        return self.hashRing[mapped_index]
+            if mapped_index==st_index:
+                break
 
+        return -1
+    
     def removeServer(self, server_id):
         for idx in range(len(self.hashRing)):
             if self.hashRing[idx] == server_id:
@@ -309,7 +316,8 @@ class ShardMap:
 
         return self._instance
     
-    def getLoadBalancedServerForShard(self,shard_id):
+    def getLoadBalancedServerForShard(self,shard_name):
+        shard_id=self.nameToIdMap[shard_name]
         request_id=generate_random_id()
         return self.idToShard[shard_id].getLoadBalancedServerId(request_id)
     
@@ -502,37 +510,53 @@ def add():
             shardMap.addShard(shard)
          
         addedServerNames = []
-
+        
+        
+        # print("LINE 514",flush=True)
         for server_name, shards in payload["servers"].items():
             try:
                 if "[" in server_name:
                     server_name=f"Server{generate_random_id()%10000}"
                 
-                print(server_name,flush=True)
-                print("--------",flush=True)
-
+                # print("LINE 520",flush=True)
+                # print(server_name,flush=True)
+                # print("--------",flush=True)
+                  
                 res = os.popen(
                     f"sudo docker run --platform linux/x86_64 --name {server_name} --network pub --network-alias {server_name} -d ds_server:latest"
                 ).read()
-
+                
+                # print("LEN res",flush=True)
                 if len(res) == 0:
                     raise
                 
                 shardWiseData={}
-
+                
+                # print("LINE 534",flush=True)
+                # print(shards,flush=True)
                 for shard in shards:
                     mapped_server_id=shardMap.getLoadBalancedServerForShard(shard)
+                    # print("LINE 536",flush=True)
+                    # print(f"mapped_server_id - {mapped_server_id}",flush=True)
+                    # print("------------",flush=True)
+                    if mapped_server_id==-1:
+                        continue
+
                     mapped_server_name=serverMap.getNameFromId(mapped_server_id)
                     
+                    # print("LINE 544",flush=True)
+                    # print(f"mapped_server_name - {mapped_server_name}",flush=True)
+                    # print(shard,flush=True)
+                    # print("---------",flush=True)
                     payload={
                         "shards":[shard]
                     }
                     res=requests.get(f"http://{mapped_server_name}:5000/copy",json=payload)
                     
-                    print(mapped_server_name,flush=True)
-                    print(shard,flush=True)
-                    print(res.json(),flush=True)
-                    print("---------",flush=True)
+                    # print(mapped_server_name,flush=True)
+                    # print(shard,flush=True)
+                    # print(res.json(),flush=True)
+                    # print("---------",flush=True)
                     shardWiseData[shard]=res.json()['message']
 
 
@@ -548,8 +572,6 @@ def add():
                     shard_id = shardMap.getIdFromName(shard)
                     serverMap.addShardToServer(server_id, shard_id, shard)
 
-                    serverMap.insertBulkData([server_id],shard_id,shardWiseData[shard])
-                    
                     shard_ids.append(shard)
 
                 req_body = {"schema": schema, "shards": shard_ids}
@@ -562,6 +584,10 @@ def add():
                     except Exception as e:
                         print(e)
                         time.sleep(3)
+                
+                for shard in shards:
+                    serverMap.insertBulkData([server_id],shard_id,shardWiseData[shard])
+                    
 
             except Exception as e:
                 print(e)
