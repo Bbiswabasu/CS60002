@@ -417,7 +417,11 @@ def init():
 
             if len(res) == 0:
                 raise
-
+        except Exception as e:
+            print(e)
+    
+    for server_name, shards in payload["servers"].items():
+        try:
             serverMap.addServer(server_name)
             server_id = serverMap.getIdFromName(server_name)
 
