@@ -153,21 +153,30 @@ class ServerMap:
 
     def getIdFromName(self, server_name):
         return self.nameToIdMap[server_name]
-
+    
+    def getNameFromId(self,server_id):
+        return self.idToNameMap[server_id]
+    
     def getData(self, shardFragment, id_limits):
 
         server = self.idToServer[shardFragment["server_id"]]
-
+        
         return server.getData(shardFragment["shard_id"], id_limits)
 
-    def getStatus(self):
-        res = {}
+    def getStatus(self,server_id=None):
 
-        for key, value in self.nameToIdMap.items():
-            res[key] = self.idToServer[value].getStatus()
+        if server_id is not None:
+            return self.idToServer[server_id].getStatus()
+        
+        else:
+            res = {}
 
-        return res
+            for key, value in self.nameToIdMap.items():
+                res[key] = self.idToServer[value].getStatus()
 
+            return res
+    
+    
     def insertBulkData(self, serversList, shard_id, data):
         for server_id in serversList:
             server = self.idToServer[server_id]
@@ -299,7 +308,11 @@ class ShardMap:
             self.idToShard = {}
 
         return self._instance
-
+    
+    def getLoadBalancedServerForShard(self,shard_id):
+        request_id=generate_random_id()
+        return self.idToShard[shard_id].getLoadBalancedServerId(request_id)
+    
     def getIdFromName(self, shard_name):
         return self.nameToIdMap[shard_name]
 
@@ -326,10 +339,11 @@ class ShardMap:
         shard_name = shard["Shard_id"]
         student_id_low = shard["Stud_id_low"]
         shard_size = shard["Shard_size"]
-
-        unique_id = generate_random_id()
-        self.nameToIdMap[shard_name] = unique_id
-        self.idToShard[unique_id] = Shard(unique_id, student_id_low, shard_size)
+        
+        if shard_name not in self.nameToIdMap:
+            unique_id = generate_random_id()
+            self.nameToIdMap[shard_name] = unique_id
+            self.idToShard[unique_id] = Shard(unique_id, student_id_low, shard_size)
 
     def addServerToShard(self, shard_name, server_id):
         shard_id = self.nameToIdMap[shard_name]
@@ -368,6 +382,7 @@ class ShardMap:
         for shard_id, shard in self.idToShard.items():
             if shard.isDataPresent(id_limits):
                 request_id = generate_random_id()
+                
                 shardFragment = {
                     "shard_id": shard_id,
                     "server_id": shard.getLoadBalancedServerId(request_id),
@@ -485,13 +500,16 @@ def add():
 
         for shard in payload["new_shards"]:
             shardMap.addShard(shard)
-
+         
         addedServerNames = []
 
         for server_name, shards in payload["servers"].items():
             try:
                 if "[" in server_name:
                     server_name=f"Server{generate_random_id()%10000}"
+                
+                print(server_name,flush=True)
+                print("--------",flush=True)
 
                 res = os.popen(
                     f"sudo docker run --platform linux/x86_64 --name {server_name} --network pub --network-alias {server_name} -d ds_server:latest"
@@ -499,8 +517,27 @@ def add():
 
                 if len(res) == 0:
                     raise
+                
+                shardWiseData={}
+
+                for shard in shards:
+                    mapped_server_id=shardMap.getLoadBalancedServerForShard(shard)
+                    mapped_server_name=serverMap.getNameFromId(mapped_server_id)
+                    
+                    payload={
+                        "shards":[shard]
+                    }
+                    res=requests.get(f"http://{mapped_server_name}:5000/copy",json=payload)
+                    
+                    print(mapped_server_name,flush=True)
+                    print(shard,flush=True)
+                    print(res.json(),flush=True)
+                    print("---------",flush=True)
+                    shardWiseData[shard]=res.json()['message']
+
 
                 serverMap.addServer(server_name)
+
                 addedServerNames.append(server_name)
 
                 server_id = serverMap.getIdFromName(server_name)
@@ -510,7 +547,11 @@ def add():
                     shardMap.addServerToShard(shard, server_id)
                     shard_id = shardMap.getIdFromName(shard)
                     serverMap.addShardToServer(server_id, shard_id, shard)
+
+                    serverMap.insertBulkData([server_id],shard_id,shardWiseData[shard])
+                    
                     shard_ids.append(shard)
+
                 req_body = {"schema": schema, "shards": shard_ids}
                 while True:
                     try:
@@ -599,6 +640,30 @@ def read():
     serverMap = ServerMap()
 
     for shardFragment in shardFragments:
+
+        server_id=shardFragment['server_id']
+        server_name=serverMap.getNameFromId(server_id)
+        
+        try:
+            res=requests.get(f"http://{server_name}:5000/heartbeat")
+        except:
+            shardsInServer=serverMap.getStatus(server_id)
+            
+            payload={
+                "n":1,
+                "servers":[server_name]
+            }
+
+            res=requests.delete(f"http://localhost:5000/rm",json=payload)
+            
+            payload={
+                "n":1,
+                "new_shards":[],
+                "servers":[{server_name:[shardsInServer]}]
+            }
+
+            res=requests.post(f"http://localhost:5000/add",json=payload)
+
         data = serverMap.getData(shardFragment, payload["Stud_id"])
         for _ in data:
             result.append(_)

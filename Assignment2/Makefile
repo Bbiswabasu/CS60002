@@ -3,7 +3,7 @@
 all:
     
 	docker build -t ds_server:latest ./server --platform linux/x86_64
-	docker compose up -d
+	docker compose up
 
 clean:
 	docker compose down --rmi all
