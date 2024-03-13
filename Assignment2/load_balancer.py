@@ -140,10 +140,9 @@ class ServerMap:
                 raise Exception("<ERROR> Container could not be stopped!")
 
             shardList = []
-            for shard in server.shards:
+            for shard in server.shardsToDB.keys():
                 shardList.append(shard)
 
-            del server
             self.idToServer.pop(server_id)
             self.idToNameMap.pop(server_id)
             self.nameToIdMap.pop(server_name)
@@ -362,7 +361,8 @@ class ShardMap:
 
             res = shard.removeServer(server_id)
             if not res:
-                self.nameToIdMap.pop(self.getNameFromId(shard_id))
+                shard_name = self.getNameFromId(shard_id)
+                self.nameToIdMap.pop(shard_name)
                 self.idToShard.pop(shard_id)
 
     def getStatus(self):
@@ -439,7 +439,7 @@ def init():
                 raise
         except Exception as e:
             print(e)
-    
+
     for server_name, shards in payload["servers"].items():
         try:
             serverMap.addServer(server_name)
@@ -640,39 +640,39 @@ def remove():
 @app.route("/read", methods=["GET"])
 def read():
     payload = request.json
+    studId = payload["Stud_id"]
 
     shardMap = ShardMap()
-    shardFragments = shardMap.getShardFragments(payload["Stud_id"])
-
-    result = []
-
     serverMap = ServerMap()
 
+    shardFragments = shardMap.getShardFragments(studId)
+    result = []
     for shardFragment in shardFragments:
-
         server_id = shardFragment["server_id"]
         server_name = serverMap.getNameFromId(server_id)
-
         try:
             res = requests.get(f"http://{server_name}:5000/heartbeat")
         except:
             shardsInServer = serverMap.getStatus(server_id)
-
             payload = {"n": 1, "servers": [server_name]}
-
             res = requests.delete(f"http://localhost:5000/rm", json=payload)
-
             payload = {
                 "n": 1,
                 "new_shards": [],
-                "servers": [{server_name: [shardsInServer]}],
+                "servers": {
+                    server_name: [
+                        shardMap.getNameFromId(shardId) for shardId in shardsInServer
+                    ]
+                },
             }
-
             res = requests.post(f"http://localhost:5000/add", json=payload)
 
-        data = serverMap.getData(shardFragment, payload["Stud_id"])
-        for _ in data:
-            result.append(_)
+        finally:
+            shardFragment["server_id"] = serverMap.getIdFromName(server_name)
+            data = serverMap.getData(shardFragment, studId)
+            for _ in data:
+                _.pop("id")
+                result.append(_)
 
     response = {"shards_queried": [], "data": result, "status": "success"}
 
