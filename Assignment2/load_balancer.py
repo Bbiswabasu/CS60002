@@ -710,6 +710,11 @@ def write():
         try:
             serversList = shardMap.getAllServersFromShardId(shard_id)
             serverMap.insertBulkData(serversList, shard_id, data)
+        except Exception as e:
+            return {
+                "message": str(e),
+                "status": "failure",
+            }, 400
         finally:
             multi_lock_dict.release_lock(shard_id)
 
@@ -741,6 +746,11 @@ def update():
         try:
             serversList = shardMap.getAllServersFromShardId(shard_id)
             serverMap.updateData(serversList, shard_id, payload["data"])
+        except Exception as e:
+            return {
+                "message": str(e),
+                "status": "failure",
+            }, 400
         finally:
             multi_lock_dict.release_lock(shard_id)
 
@@ -769,6 +779,11 @@ def delete():
     try:
         serversList = shardMap.getAllServersFromShardId(shard_id)
         serverMap.delData(serversList, shard_id, payload["Stud_id"])
+    except Exception as e:
+        return {
+            "message": str(e),
+            "status": "failure",
+        }, 400
     finally:
         multi_lock_dict.release_lock(shard_id)
 
