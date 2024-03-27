@@ -687,6 +687,7 @@ def read():
 @app.route("/write", methods=["POST"])
 def write():
     payload = request.json
+    num_entries = len(payload["data"])
 
     shardWiseData = {}
 
@@ -709,6 +710,27 @@ def write():
 
         try:
             serversList = shardMap.getAllServersFromShardId(shard_id)
+            for idx in range(len(serversList)):
+                server_id = serversList[idx]
+                server_name = serverMap.getNameFromId(server_id)
+                try:
+                    res = requests.get(f"http://{server_name}:5000/heartbeat")
+                except:
+                    shardsInServer = serverMap.getStatus(server_id)
+                    payload = {"n": 1, "servers": [server_name]}
+                    res = requests.delete(f"http://localhost:5000/rm", json=payload)
+                    payload = {
+                        "n": 1,
+                        "new_shards": [],
+                        "servers": {
+                            server_name: [
+                                shardMap.getNameFromId(shardId)
+                                for shardId in shardsInServer
+                            ]
+                        },
+                    }
+                    res = requests.post(f"http://localhost:5000/add", json=payload)
+                    serversList[idx] = serverMap.getIdFromName(server_name)
             serverMap.insertBulkData(serversList, shard_id, data)
         except Exception as e:
             return {
@@ -719,7 +741,7 @@ def write():
             multi_lock_dict.release_lock(shard_id)
 
     response = {
-        "message": f"{len(payload['data'])} Data entries added",
+        "message": f"{num_entries} Data entries added",
         "status": "success",
     }
 
@@ -745,6 +767,30 @@ def update():
 
         try:
             serversList = shardMap.getAllServersFromShardId(shard_id)
+            for idx in range(len(serversList)):
+                server_id = serversList[idx]
+                print(f"Line713 {server_id}", flush=True)
+                server_name = serverMap.getNameFromId(server_id)
+                print(f"Line715 {server_name}", flush=True)
+                try:
+                    res = requests.get(f"http://{server_name}:5000/heartbeat")
+                except:
+                    shardsInServer = serverMap.getStatus(server_id)
+                    rem_payload = {"n": 1, "servers": [server_name]}
+                    res = requests.delete(f"http://localhost:5000/rm", json=rem_payload)
+                    print(f"Line715 {server_name}", flush=True)
+                    add_payload = {
+                        "n": 1,
+                        "new_shards": [],
+                        "servers": {
+                            server_name: [
+                                shardMap.getNameFromId(shardId)
+                                for shardId in shardsInServer
+                            ]
+                        },
+                    }
+                    res = requests.post(f"http://localhost:5000/add", json=add_payload)
+                    serversList[idx] = serverMap.getIdFromName(server_name)
             serverMap.updateData(serversList, shard_id, payload["data"])
         except Exception as e:
             return {
@@ -778,6 +824,30 @@ def delete():
 
     try:
         serversList = shardMap.getAllServersFromShardId(shard_id)
+        for idx in range(len(serversList)):
+            server_id = serversList[idx]
+            print(f"Line713 {server_id}", flush=True)
+            server_name = serverMap.getNameFromId(server_id)
+            print(f"Line715 {server_name}", flush=True)
+            try:
+                res = requests.get(f"http://{server_name}:5000/heartbeat")
+            except:
+                shardsInServer = serverMap.getStatus(server_id)
+                rem_payload = {"n": 1, "servers": [server_name]}
+                res = requests.delete(f"http://localhost:5000/rm", json=rem_payload)
+                print(f"Line715 {server_name}", flush=True)
+                add_payload = {
+                    "n": 1,
+                    "new_shards": [],
+                    "servers": {
+                        server_name: [
+                            shardMap.getNameFromId(shardId)
+                            for shardId in shardsInServer
+                        ]
+                    },
+                }
+                res = requests.post(f"http://localhost:5000/add", json=add_payload)
+                serversList[idx] = serverMap.getIdFromName(server_name)
         serverMap.delData(serversList, shard_id, payload["Stud_id"])
     except Exception as e:
         return {
