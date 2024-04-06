@@ -1,6 +1,8 @@
 from flask import Flask, jsonify, request
 import requests
-
+import threading
+import time
+import os
 
 app = Flask(__name__)
 
@@ -17,20 +19,35 @@ class ServerMap:
         if serverName in self.serversList:
             self.serversList.remove(serverName)
     
+    # Check this again
     def runPrimaryElection(self):
         try:
             res = requests.get(f"http://{self.primaryServerName}:5000/heartbeat")
+            return
         except:
-            for serverName in self.serversList:
-                try:
-                    res = requests.get(f"http://{serverName}:5000/heartbeat")
-                    self.primaryServerName=serverName
-                    return
-                except:
-                    pass
-    
+            pass
+        
+        wal_count=0
+        new_server_name=None
+
+        for serverName in self.serversList:
+            try:
+                #Use the logic for checking wal_count
+                res=requests.get(f"http://{serverName}:5000/wal_count")
+                
+                if(res>wal_count):
+                    wal_count=res
+                    new_server_name=serverName
+            except:
+                pass
+        
+        self.primaryServerName=new_server_name
+
     def getPrimaryServerName(self):
         return self.primaryServerName
+    
+    def getServersList(self):
+        return self.serversList
 
 
 class ShardManager:
@@ -51,7 +68,10 @@ class ShardManager:
         serverMap.runPrimaryElection
 
         return serverMap.getPrimaryServerName()
-
+    
+    def getShardNameToServerMap(self):
+        return self.shardNameToServerMap
+    
     def removeServer(self,serverName):
 
         for shardName in self.shardNameToServerMap:
@@ -102,7 +122,55 @@ def rm():
         "message":"Successful in /rm route of shard-manager"
         },200
 
+def periodic_heart_beat():
+    
+    while(True):
+        shardManager=ShardManager
+        shardNameToServerMap=shardManager.getShardNameToServerMap()
+        
+        for shardName in shardNameToServerMap:
+            serverMap=shardNameToServerMap[shardName]
+            
+            serverMap.runPrimaryElection()
+
+            primaryServerName=serverMap.getPrimaryServerName()
+            WAL_log=requests.get(f"http://{primaryServerName}:5000/getWAL")
+
+            serversList=serverMap.getServersList()
+
+            for server in serversList:
+                try:
+                    res=requests.get(f"http://{server}:5000/heartbeat")
+                    continue
+                except:
+                    pass
+
+                try:    
+                    res = os.popen(f"sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest").read()
+                    if len(res)==0:
+                        raise
+                    
+                    #Check this
+                    res = requests.post(f"http://{server}:5000/config", json=WAL_log)
+                except:
+                    print("Error in spawning new server")
+
+        time.sleep(5)
+
+    
+
+# @app.route("/check",methods=["GET"])
+# def check():
+#     return {
+#         "message":"Success"
+#     },200
+
 if __name__ == "__main__":
+    
+    thread = threading.Thread(target=periodic_heart_beat)
+    thread.daemon = True  # Daemonize the thread
+    thread.start()
+
     app.run(host="0.0.0.0", port=5000)
 
 
