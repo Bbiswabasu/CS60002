@@ -1,0 +1,2 @@
+{"endpoint": "write", "method": "POST", "payload": {"schema": {"columns": ["Stud_id", "Stud_name", "Stud_marks"], "dtypes": ["Number", "String", "Number"]}, "shards": ["sh1", "sh2"], "shard": "sh1", "data": [{"Stud_id": 8, "Stud_name": "GHI", "Stud_marks": 27}]}}
+{"endpoint": "write", "method": "POST", "payload": {"schema": {"columns": ["Stud_id", "Stud_name", "Stud_marks"], "dtypes": ["Number", "String", "Number"]}, "shards": ["sh1", "sh2"], "shard": "sh1", "data": [{"Stud_id": 8, "Stud_name": "GHI", "Stud_marks": 27}]}}

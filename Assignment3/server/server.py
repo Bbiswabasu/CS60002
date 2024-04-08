@@ -8,8 +8,8 @@ app = Flask(__name__)
 managers = {}
 
 
-def appendEntry(endpoint, method, payload):
-    logs = open("logs", "a")
+def appendEntry(endpoint, method, payload, shardName):
+    logs = open(f"{shardName}_logs", "a")
     logs.write(
         json.dumps({"endpoint": endpoint, "method": method, "payload": payload}) + "\n"
     )
@@ -80,7 +80,7 @@ def write():
     payload = request.json
     shardName = payload["shard"]
     entries = payload["data"]
-    appendEntry(request.endpoint, request.method, payload)
+    appendEntry(request.endpoint, request.method, payload, shardName)
     current_idx = managers[shardName].write(entries)
     response = {
         "message": "Data entries added",
@@ -96,7 +96,7 @@ def update():
     shardName = payload["shard"]
     studId = payload["Stud_id"]
     newData = payload["data"]
-    appendEntry(request.endpoint, request.method, payload)
+    appendEntry(request.endpoint, request.method, payload, shardName)
     managers[shardName].update(studId, newData)
     response = {
         "message": f"Data entry with Stud_id:{studId} updated",
@@ -110,7 +110,7 @@ def delete():
     payload = request.json
     shardName = payload["shard"]
     studId = payload["Stud_id"]
-    appendEntry(request.endpoint, request.method, payload)
+    appendEntry(request.endpoint, request.method, payload, shardName)
     managers[shardName].delete(studId)
     response = {
         "message": f"Data entry with Stud_id:{studId} removed",
@@ -119,13 +119,25 @@ def delete():
     return response, 200
 
 
-@app.route("/getWAL", methods=["GET"])
+@app.route("/get_wal", methods=["GET"])
 def getWAL():
-    if not os.path.exists("logs"):
+    shardName = request.json["shard"]
+    if not os.path.exists(f"{shardName}_logs"):
         response = {"data": [], "status": "success"}
     else:
-        logs = open("logs", "r")
+        logs = open(f"{shardName}_logs", "r")
         response = {"data": logs.readlines(), "status": "success"}
+        logs.close()
+    return response
+
+@app.route("/get_wal_count", methods=["GET"])
+def getWALCount():
+    shardName = request.json["shard"]
+    if not os.path.exists(f"{shardName}_logs"):
+        response = {"count": -1, "status": "success"}
+    else:
+        logs = open(f"{shardName}_logs", "r")
+        response = {"data": len(logs.readlines()), "status": "success"}
         logs.close()
     return response
 
