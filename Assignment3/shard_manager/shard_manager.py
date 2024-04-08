@@ -155,7 +155,7 @@ def add():
 
     shardManager = ShardManager()
 
-    for serverName, shardsList in payload["server"].items():
+    for serverName, shardsList in payload["servers"].items():
         for shardName in shardsList:
             shardManager.addServerToShard(shardName, serverName)
 

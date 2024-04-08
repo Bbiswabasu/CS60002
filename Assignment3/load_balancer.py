@@ -476,6 +476,15 @@ def init():
 
         except Exception as e:
             print(e)
+            
+    sm_payload = {}
+    sm_payload["servers"] = payload["servers"]
+    try:
+        res = requests.post(
+            "http://shard_manager_1:5000/add", json=sm_payload
+        )
+    except Exception as e:
+        print(e)
 
     response = {"message": "Configured Database", "status": "success"}
 
@@ -522,10 +531,14 @@ def add():
             shardMap.addShard(shard)
 
         addedServerNames = []
+        sm_payload_servers_dict = {}
+        
         for server_name, shards in payload["servers"].items():
             try:
                 if "[" in server_name:
                     server_name = f"Server{generate_random_id()%10000}"
+                    
+                sm_payload_servers_dict[server_name] = shards
 
                 res = os.popen(
                     f"sudo docker run --platform linux/x86_64 --name {server_name} --network pub --network-alias {server_name} -d ds_server:latest"
@@ -586,6 +599,15 @@ def add():
             except Exception as e:
                 print(e)
 
+        sm_payload = {}
+        sm_payload["servers"] = sm_payload_servers_dict
+        try:
+            res = requests.post(
+                "http://shard_manager_1:5000/add", json=sm_payload
+            )
+        except Exception as e:
+            print(e)
+
         response = {}
 
         response["N"] = serverMap.getServersCount()
@@ -636,6 +658,15 @@ def remove():
         for serverId in serversToDel:
             shardList = serverMap.removeServer(serverId)
             shardMap.removeServerFromShard(shardList, serverId)
+
+        sm_payload = {}
+        sm_payload["servers"] = serversToDel
+        try:
+            res = requests.delete(
+                "http://shard_manager_1:5000/rm", json=sm_payload
+            )
+        except Exception as e:
+            raise e
 
         response = {
             "message": {"N": payload["n"], "servers": serversToDelNames},
