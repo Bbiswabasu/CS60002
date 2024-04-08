@@ -33,10 +33,10 @@ class ServerMap:
         for serverName in self.serversList:
             try:
                 #Use the logic for checking wal_count
-                res=requests.get(f"http://{serverName}:5000/wal_count")
-                
-                if(res>wal_count):
-                    wal_count=res
+                res=requests.get(f"http://{serverName}:5000/get_wal_count")
+            
+                if(res['count']>wal_count):
+                    wal_count=res['count']
                     new_server_name=serverName
             except:
                 pass
@@ -125,7 +125,7 @@ def rm():
 def periodic_heart_beat():
     
     while(True):
-        shardManager=ShardManager
+        shardManager=ShardManager()
         shardNameToServerMap=shardManager.getShardNameToServerMap()
         
         for shardName in shardNameToServerMap:
@@ -134,7 +134,12 @@ def periodic_heart_beat():
             serverMap.runPrimaryElection()
 
             primaryServerName=serverMap.getPrimaryServerName()
-            WAL_log=requests.get(f"http://{primaryServerName}:5000/getWAL")
+            
+            req_body={
+                "shard":shardName
+            }
+
+            WAL_log=requests.get(f"http://{primaryServerName}:5000/get_wal",json=req_body)
 
             serversList=serverMap.getServersList()
 
@@ -150,8 +155,20 @@ def periodic_heart_beat():
                     if len(res)==0:
                         raise
                     
-                    #Check this
-                    res = requests.post(f"http://{server}:5000/config", json=WAL_log)
+                    req_body={
+                        "logRequests":WAL_log,
+                        "shards":[shardName]
+                    }
+
+                    while True:
+                        try:
+                            res = requests.post(
+                                f"http://{server}:5000/config", json=req_body
+                            )
+                            break
+                        except Exception as e:
+                            print(e)
+                            time.sleep(3)
                 except:
                     print("Error in spawning new server")
 
