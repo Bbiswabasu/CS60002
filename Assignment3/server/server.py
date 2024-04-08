@@ -9,7 +9,7 @@ managers = {}
 
 
 def appendEntry(endpoint, method, payload, shardName):
-    logs = open(f"{shardName}_logs", "a")
+    logs = open(f"/app/{shardName}_logs", "a")
     logs.write(
         json.dumps({"endpoint": endpoint, "method": method, "payload": payload}) + "\n"
     )
@@ -125,10 +125,11 @@ def getWAL():
     if not os.path.exists(f"{shardName}_logs"):
         response = {"data": [], "status": "success"}
     else:
-        logs = open(f"{shardName}_logs", "r")
+        logs = open(f"/app/{shardName}_logs", "r")
         response = {"data": logs.readlines(), "status": "success"}
         logs.close()
     return response
+
 
 @app.route("/get_wal_count", methods=["GET"])
 def getWALCount():
@@ -136,7 +137,7 @@ def getWALCount():
     if not os.path.exists(f"{shardName}_logs"):
         response = {"count": -1, "status": "success"}
     else:
-        logs = open(f"{shardName}_logs", "r")
+        logs = open(f"/app/{shardName}_logs", "r")
         response = {"data": len(logs.readlines()), "status": "success"}
         logs.close()
     return response

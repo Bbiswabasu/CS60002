@@ -416,6 +416,17 @@ class ShardMap:
 schema = None
 
 
+# @app.route("/checkSM", methods=["GET"])
+# def checkSM():
+#     try:
+#         res = requests.get("http://shard_manager_1:5000/check")
+#     except Exception as e:
+#         print(e)
+#         return {"message": "ERROR", "status": "failure"}, 400
+#     response = {"message": "Active", "status": "success"}
+#     return response, 200
+
+
 @app.route("/init", methods=["POST"])
 def init():
     payload = request.json

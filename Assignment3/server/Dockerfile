@@ -5,15 +5,18 @@ COPY . /app
 WORKDIR /app
 
 RUN apt-get update
+# RUN apt-get install -y sudo
 RUN apt-get install -y python3
 RUN apt-get install -y python3-pip
 
 RUN pip install --upgrade pip --break-system-packages
 RUN pip install -r requirements.txt --break-system-packages
 RUN chmod +x /app/custom-entry.sh
+# RUN chmod +x /app/server.py
 
 ENV USER=theuser
 RUN adduser --home /home/$USER --disabled-password --gecos GECOS $USER \
+  # && usermod -aG sudo $USER \
   && chsh -s /bin/zsh $USER
 
 USER $USER
