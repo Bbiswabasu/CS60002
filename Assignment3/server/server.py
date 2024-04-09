@@ -80,14 +80,34 @@ def write():
     payload = request.json
     shardName = payload["shard"]
     entries = payload["data"]
+    followers = payload.get("followers", [])
     appendEntry(request.endpoint, request.method, payload, shardName)
-    current_idx = managers[shardName].write(entries)
-    response = {
-        "message": "Data entries added",
-        "current_idx": current_idx,
-        "status": "success",
-    }
-    return response, 200
+    replicated_count = 0
+    for follower in followers:
+        payload = {
+            "shard": shardName,
+            "data": entries,
+        }
+        try:
+            res = requests.post(f"http://{follower}:5000/write", json=payload)
+            replicated_count += 1
+        except Exception as e:
+            print(e)
+
+    if replicated_count > len(followers) // 2:
+        current_idx = managers[shardName].write(entries)
+        response = {
+            "message": "Data entries added",
+            "current_idx": current_idx,
+            "status": "success",
+        }
+        return response, 200
+    else:
+        response = {
+            "message": "Data entries not added",
+            "status": "error",
+        }
+        return response, 400
 
 
 @app.route("/update", methods=["PUT"])
@@ -96,13 +116,34 @@ def update():
     shardName = payload["shard"]
     studId = payload["Stud_id"]
     newData = payload["data"]
+    followers = payload.get("followers", [])
     appendEntry(request.endpoint, request.method, payload, shardName)
-    managers[shardName].update(studId, newData)
-    response = {
-        "message": f"Data entry with Stud_id:{studId} updated",
-        "status": "success",
-    }
-    return response, 200
+    replicated_count = 0
+    for follower in followers:
+        payload = {
+            "shard": shardName,
+            "Stud_id": studId,
+            "data": newData,
+        }
+        try:
+            res = requests.post(f"http://{follower}:5000/update", json=payload)
+            replicated_count += 1
+        except Exception as e:
+            print(e)
+
+    if replicated_count > len(followers) // 2:
+        managers[shardName].update(studId, newData)
+        response = {
+            "message": f"Data entry with Stud_id:{studId} updated",
+            "status": "success",
+        }
+        return response, 200
+    else:
+        response = {
+            "message": "Data entry not updated",
+            "status": "error",
+        }
+        return response, 400
 
 
 @app.route("/del", methods=["DELETE"])
@@ -110,13 +151,33 @@ def delete():
     payload = request.json
     shardName = payload["shard"]
     studId = payload["Stud_id"]
+    followers = payload.get("followers", [])
     appendEntry(request.endpoint, request.method, payload, shardName)
-    managers[shardName].delete(studId)
-    response = {
-        "message": f"Data entry with Stud_id:{studId} removed",
-        "status": "success",
-    }
-    return response, 200
+    replicated_count = 0
+    for follower in followers:
+        payload = {
+            "shard": shardName,
+            "Stud_id": studId,
+        }
+        try:
+            res = requests.post(f"http://{follower}:5000/del", json=payload)
+            replicated_count += 1
+        except Exception as e:
+            print(e)
+
+    if replicated_count > len(followers) // 2:
+        managers[shardName].delete(studId)
+        response = {
+            "message": f"Data entry with Stud_id:{studId} removed",
+            "status": "success",
+        }
+        return response, 200
+    else:
+        response = {
+            "message": "Data entry not deleted",
+            "status": "error",
+        }
+        return response, 400
 
 
 @app.route("/get_wal", methods=["GET"])
