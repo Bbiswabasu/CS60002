@@ -16,7 +16,7 @@ def periodic_heart_beat():
         for shardName in shardNameToServerMap:
             serverMap = shardNameToServerMap[shardName]
 
-            serverMap.runPrimaryElection()
+            serverMap.runPrimaryElection(shardName)
 
             primaryServerName = serverMap.getPrimaryServerName()
 
@@ -24,10 +24,9 @@ def periodic_heart_beat():
 
             WAL_log = requests.get(
                 f"http://{primaryServerName}:5000/get_wal", json=req_body
-            )
+            ).json()
 
             serversList = serverMap.getServersList()
-
             for server in serversList:
                 try:
                     res = requests.get(f"http://{server}:5000/heartbeat")
@@ -56,13 +55,17 @@ def periodic_heart_beat():
                 except:
                     print("Error in spawning new server")
 
-        time.sleep(5)
+        time.sleep(15)
 
 
 class ServerMap:
     def __init__(self):
         self.primaryServerName = None
         self.serversList = []
+
+    def printIt(self):
+        for server in self.serversList:
+            print(server, flush=True)
 
     def addServer(self, serverName):
         self.serversList.append(serverName)
@@ -71,21 +74,22 @@ class ServerMap:
         if serverName in self.serversList:
             self.serversList.remove(serverName)
 
-    # Check this again
-    def runPrimaryElection(self):
+    def runPrimaryElection(self, shardName):
         try:
             res = requests.get(f"http://{self.primaryServerName}:5000/heartbeat")
             return
         except:
             pass
 
-        wal_count = 0
+        wal_count = -2
         new_server_name = None
 
         for serverName in self.serversList:
             try:
-                # Use the logic for checking wal_count
-                res = requests.get(f"http://{serverName}:5000/get_wal_count")
+                req_body = {"shard": shardName}
+                res = requests.get(
+                    f"http://{serverName}:5000/get_wal_count", json=req_body
+                ).json()
 
                 if res["count"] > wal_count:
                     wal_count = res["count"]
@@ -136,6 +140,10 @@ class ShardManager:
 
             serverMap.runPrimaryElection()
 
+    def printIt(self):
+        for shardName, serverMap in self.shardNameToServerMap.items():
+            serverMap.printIt()
+
 
 @app.route("/primary-elect", methods=["GET"])
 def primary_elect():
@@ -151,14 +159,11 @@ def primary_elect():
 @app.route("/add", methods=["POST"])
 def add():
     payload = request.json
-    ## "servers" : {"Server4":["sh3","sh5"]}
-
     shardManager = ShardManager()
 
     for serverName, shardsList in payload["servers"].items():
         for shardName in shardsList:
             shardManager.addServerToShard(shardName, serverName)
-
     return {"message": "Successful"}, 200
 
 

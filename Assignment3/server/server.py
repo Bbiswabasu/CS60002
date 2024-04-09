@@ -9,7 +9,7 @@ managers = {}
 
 
 def appendEntry(endpoint, method, payload, shardName):
-    logs = open(f"/app/{shardName}_logs", "a")
+    logs = open(f"{shardName}_logs", "a")
     logs.write(
         json.dumps({"endpoint": endpoint, "method": method, "payload": payload}) + "\n"
     )
@@ -121,26 +121,28 @@ def delete():
 
 @app.route("/get_wal", methods=["GET"])
 def getWAL():
-    shardName = request.json["shard"]
+    payload = request.json
+    shardName = payload["shard"]
     if not os.path.exists(f"{shardName}_logs"):
         response = {"data": [], "status": "success"}
     else:
-        logs = open(f"/app/{shardName}_logs", "r")
+        logs = open(f"{shardName}_logs", "r")
         response = {"data": logs.readlines(), "status": "success"}
         logs.close()
-    return response
+    return response, 200
 
 
 @app.route("/get_wal_count", methods=["GET"])
 def getWALCount():
-    shardName = request.json["shard"]
+    payload = request.json
+    shardName = payload["shard"]
     if not os.path.exists(f"{shardName}_logs"):
         response = {"count": -1, "status": "success"}
     else:
-        logs = open(f"/app/{shardName}_logs", "r")
+        logs = open(f"{shardName}_logs", "r")
         response = {"data": len(logs.readlines()), "status": "success"}
         logs.close()
-    return response
+    return response, 200
 
 
 if __name__ == "__main__":
