@@ -20,11 +20,6 @@ def periodic_heart_beat():
 
             primaryServerName = serverMap.getPrimaryServerName()
 
-            req_body = {"shard": shardName}
-
-            WAL_log = requests.get(
-                f"http://{primaryServerName}:5000/get_wal", json=req_body
-            ).json()
 
             serversList = serverMap.getServersList()
             for server in serversList:
@@ -40,7 +35,14 @@ def periodic_heart_beat():
                     ).read()
                     if len(res) == 0:
                         raise
+                    
+                    req_body = {"shard": shardName}
 
+                    WAL_log = requests.get(
+                        f"http://{primaryServerName}:5000/get_wal", json=req_body
+                    ).json()
+                    
+                
                     req_body = {"logRequests": WAL_log, "shards": [shardName]}
 
                     while True:
@@ -191,15 +193,17 @@ def write():
     shardManager=ShardManager()
 
     serversList=shardManager.getServersListFromShardName(payload['shard'])
+    
 
+    primaryServerName=shardManager.getPrimaryServerForShard(payload['shard'])
+    serversList.remove(primaryServerName)
+    
     req_body={
         "data":payload['data'],
         "followers":serversList,
         "shard":payload['shard']
     }
-
-    primaryServerName=shardManager.getPrimaryServerForShard(payload['shard'])
-
+    
     try:
         res = requests.post(f"http://{primaryServerName}:5000/write", json=req_body)
     except Exception as e:
