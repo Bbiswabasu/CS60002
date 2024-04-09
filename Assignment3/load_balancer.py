@@ -703,6 +703,44 @@ def read():
     return response, 200
 
 
+@app.route("/read/<serverName>", methods=["GET"])
+def readServer(serverName):
+    response = {}
+    res = requests.get("http://localhost:5000/status").json()
+
+    serversList = res["servers"].keys()
+    if serverName not in serversList:
+        response["message"] = "Requested server does not exist"
+        response["status"] = "failure"
+        return response, 400
+
+    shard_limits = {}
+    for shardData in res["shards"]:
+        shard_limits[shardData["Shard_id"]] = {
+            "low": shardData["Stud_id_low"],
+            "high": shardData["Stud_id_low"] + shardData["Shard_size"] - 1,
+        }
+
+    shardsOnServer = res["servers"][serverName]
+
+    response = {}
+
+    for shard in shardsOnServer:
+        shardPayload = {"shard": shard, "Stud_id": shard_limits[shard]}
+        try:
+            res = requests.get(
+                f"http://{serverName}:5000/read", json=shardPayload
+            ).json()
+            response[shard] = res["data"]
+        except Exception as e:
+            response["message"] = str(e)
+            response["status"] = "failure"
+            return response, 500
+
+    response["status"] = "success"
+    return response, 200
+
+
 @app.route("/write", methods=["POST"])
 def write():
     payload = request.json
