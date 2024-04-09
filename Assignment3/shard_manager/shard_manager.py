@@ -125,10 +125,13 @@ class ShardManager:
 
     def getPrimaryServerForShard(self, shardName):
         serverMap = self.shardNameToServerMap[shardName]
-        serverMap.runPrimaryElection()
+        serverMap.runPrimaryElection(shardName)
 
         return serverMap.getPrimaryServerName()
-
+    
+    def getServersListFromShardName(self,shardName):
+        return self.shardNameToServerMap[shardName].getServersList()
+    
     def getShardNameToServerMap(self):
         return self.shardNameToServerMap
 
@@ -138,7 +141,7 @@ class ShardManager:
             serverMap = self.shardNameToServerMap[shardName]
             serverMap.removeServer(serverName)
 
-            serverMap.runPrimaryElection()
+            serverMap.runPrimaryElection(shardName)
 
     def printIt(self):
         for shardName, serverMap in self.shardNameToServerMap.items():
@@ -181,10 +184,33 @@ def rm():
 
     return {"message": "Successful in /rm route of shard-manager"}, 200
 
+@app.route("/write",methods=["POST"])
+def write():
+    payload=request.json
+    
+    shardManager=ShardManager()
 
-# @app.route("/check", methods=["GET"])
-# def check():
-#     return {"message": "Success"}, 200
+    serversList=shardManager.getServersListFromShardName(payload['shard'])
+
+    req_body={
+        "data":payload['data'],
+        "followers":serversList,
+        "shard":payload['shard']
+    }
+
+    primaryServerName=shardManager.getPrimaryServerForShard(payload['shard'])
+
+    try:
+        res = requests.post(f"http://{primaryServerName}:5000/write", json=req_body)
+    except Exception as e:
+        print(e)
+    
+    response={
+        "message":"Succesfully Inserted data",
+        "status":"Sucessful"
+    }
+    
+    return response,200
 
 
 if __name__ == "__main__":

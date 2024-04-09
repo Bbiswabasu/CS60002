@@ -710,7 +710,6 @@ def write():
     shardWiseData = {}
 
     shardMap = ShardMap()
-    serverMap = ServerMap()
 
     for data in payload["data"]:
         shard_id = shardMap.getShardIdFromStudId(data["Stud_id"])
@@ -727,8 +726,15 @@ def write():
         multi_lock_dict.acquire_lock(shard_id)
 
         try:
-            serversList = shardMap.getAllServersFromShardId(shard_id)
-            serverMap.insertBulkData(serversList, shard_id, data)
+            shardName=shardMap.getNameFromId(shard_id)
+
+            req_payload = {
+            "shard": shardName,
+            "data": data
+            }
+            
+            res = requests.post(f"http://shard_manager_1:5000/write", json=req_payload)
+
         except Exception as e:
             return {
                 "message": str(e),
