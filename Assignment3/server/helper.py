@@ -86,7 +86,7 @@ class SQLHandler:
     def count(self, table_name):
         res = self.query(f"SELECT count(id) AS count FROM {table_name}")
         return res[0]["count"]
-    
+
     def useDB(self, dbname=None):
         res = self.query("SHOW DATABASES")
         if dbname not in [r["Database"] for r in res]:
@@ -103,6 +103,8 @@ class SQLHandler:
             self.query(
                 f"CREATE TABLE {tabname} (id INT AUTO_INCREMENT PRIMARY KEY{col_config})"
             )
+        else:
+            self.query(f"DELETE FROM {tabname}")
         return tabname
 
     def getAll(self, table_name):
@@ -133,4 +135,3 @@ class SQLHandler:
             row_str += f", '{v}'"
         self.query(f"INSERT INTO {table_name} VALUES ({row_str})")
         return id
-

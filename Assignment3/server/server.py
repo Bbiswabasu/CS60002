@@ -42,8 +42,11 @@ def config():
                 shardName, payload["schema"]["columns"], payload["schema"]["dtypes"]
             )
             message += f"Server0: {shardName}, "
+            if os.path.exists(f"{shardName}_logs"):
+                os.remove(f"{shardName}_logs")
         except Exception as e:
             print(e)
+
     executeLog(logRequests)
     message += "configured"
     response = {"message": message, "status": "successful"}
@@ -94,7 +97,7 @@ def write():
         except Exception as e:
             print(e)
 
-    if replicated_count > len(followers) // 2:
+    if len(followers) == 0 or replicated_count > len(followers) // 2:
         current_idx = managers[shardName].write(entries)
         response = {
             "message": "Data entries added",
@@ -131,7 +134,7 @@ def update():
         except Exception as e:
             print(e)
 
-    if replicated_count > len(followers) // 2:
+    if len(followers) == 0 or replicated_count > len(followers) // 2:
         managers[shardName].update(studId, newData)
         response = {
             "message": f"Data entry with Stud_id:{studId} updated",
@@ -165,7 +168,7 @@ def delete():
         except Exception as e:
             print(e)
 
-    if replicated_count > len(followers) // 2:
+    if len(followers) == 0 or replicated_count > len(followers) // 2:
         managers[shardName].delete(studId)
         response = {
             "message": f"Data entry with Stud_id:{studId} removed",
