@@ -82,6 +82,9 @@ class ServerMap:
             return
         except:
             pass
+        
+        if self.primaryServerName!=None:
+            self.serversList.append(self.primaryServerName)
 
         wal_count = -2
         new_server_name = None
@@ -100,6 +103,9 @@ class ServerMap:
                 pass
 
         self.primaryServerName = new_server_name
+        if new_server_name in self.serversList:
+            self.serversList.remove(self.primaryServerName)
+            
 
     def getPrimaryServerName(self):
         return self.primaryServerName
@@ -193,10 +199,8 @@ def write():
     shardManager=ShardManager()
 
     serversList=shardManager.getServersListFromShardName(payload['shard'])
-    
 
     primaryServerName=shardManager.getPrimaryServerForShard(payload['shard'])
-    serversList.remove(primaryServerName)
     
     req_body={
         "data":payload['data'],
@@ -211,6 +215,63 @@ def write():
     
     response={
         "message":"Succesfully Inserted data",
+        "status":"Sucessful"
+    }
+    
+    return response,200
+
+@app.route("/update",methods=["PUT"])
+def update():
+    payload=request.json 
+    shardManager=ShardManager()
+
+    serversList=shardManager.getServersListFromShardName(payload['shard'])
+    
+    primaryServerName=shardManager.getPrimaryServerForShard(payload['shard'])
+    
+
+    req_body={
+        "data":payload['data'],
+        "followers":serversList,
+        "shard":payload['shard'],
+        "Stud_id":payload['Stud_id']
+       }
+     
+    try:
+        res = requests.post(f"http://{primaryServerName}:5000/update", json=req_body)
+    except Exception as e:
+        print(e)
+    
+    response={
+        "message":"Succesfully Updated data",
+        "status":"Sucessful"
+    }
+    
+    return response,200
+
+@app.route("/del",methods=["DELETE"])
+def delete():
+    payload=request.json
+
+    shardManager=ShardManager()
+
+    serversList=shardManager.getServersListFromShardName(payload['shard'])
+    
+    primaryServerName=shardManager.getPrimaryServerForShard(payload['shard'])
+
+    req_body={
+        "followers":serversList,
+        "shard":payload['shard'],
+        "Stud_id":payload['Stud_id']
+       }
+    
+    try:
+        res = requests.delete(f"http://{primaryServerName}:5000/del", json=req_body)
+    except Exception as e:
+        print(e)
+    
+    response={
+        "message":"Succesfully Delete data",
         "status":"Sucessful"
     }
     

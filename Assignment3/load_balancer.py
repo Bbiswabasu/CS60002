@@ -798,7 +798,6 @@ def update():
             raise Exception("<ERROR> Student ID does not match!")
 
         shardMap = ShardMap()
-        serverMap = ServerMap()
 
         shard_id = shardMap.getShardIdFromStudId(payload["Stud_id"])
 
@@ -806,9 +805,17 @@ def update():
 
         multi_lock_dict.acquire_lock(shard_id)
 
-        try:
-            serversList = shardMap.getAllServersFromShardId(shard_id)
-            serverMap.updateData(serversList, shard_id, payload["data"])
+        try: 
+            shardName=shardMap.getNameFromId(shard_id)
+            
+            req_payload={
+                "data":payload['data'],
+                "shard":shardName,
+                "Stud_id":payload["Stud_id"]
+            }
+            
+            res = requests.put(f"http://shard_manager_1:5000/update", json=req_payload)
+            
         except Exception as e:
             return {
                 "message": str(e),
@@ -832,7 +839,6 @@ def delete():
     payload = request.json
 
     shardMap = ShardMap()
-    serverMap = ServerMap()
 
     shard_id = shardMap.getShardIdFromStudId(payload["Stud_id"])
 
@@ -840,8 +846,17 @@ def delete():
     multi_lock_dict.acquire_lock(shard_id)
 
     try:
-        serversList = shardMap.getAllServersFromShardId(shard_id)
-        serverMap.delData(serversList, shard_id, payload["Stud_id"])
+        shardName=shardMap.getNameFromId(shard_id)
+            
+        req_payload={
+            "shard":shardName,
+            "Stud_id":payload["Stud_id"]
+        }
+        
+        print(req_payload,flush=True)
+        
+        res = requests.delete(f"http://shard_manager_1:5000/del", json=req_payload)
+        
     except Exception as e:
         return {
             "message": str(e),
