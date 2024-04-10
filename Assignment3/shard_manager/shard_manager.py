@@ -75,6 +75,9 @@ class ServerMap:
     def removeServer(self, serverName):
         if serverName in self.serversList:
             self.serversList.remove(serverName)
+        
+        if serverName==self.primaryServerName:
+            self.primaryServerName=None
 
     def runPrimaryElection(self, shardName):
         try:
