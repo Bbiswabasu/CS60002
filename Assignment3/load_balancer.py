@@ -227,7 +227,7 @@ class Shard:
 
     def isDataPresent(self, id_limits):
         id_low = self.student_id_low
-        id_high = self.student_id_low + self.shard_size
+        id_high = self.student_id_low + self.shard_size - 1
 
         if id_low > id_limits["high"] or id_high < id_limits["low"]:
             return False
@@ -466,6 +466,13 @@ def init():
         except Exception as e:
             print(e)
 
+    sm_payload = {}
+    sm_payload["servers"] = payload["servers"]
+    try:
+        res = requests.post("http://shard_manager_1:5000/add", json=sm_payload)
+    except Exception as e:
+        print(e)
+
     response = {"message": "Configured Database", "status": "success"}
 
     return response, 200
@@ -511,10 +518,14 @@ def add():
             shardMap.addShard(shard)
 
         addedServerNames = []
+        sm_payload_servers_dict = {}
+
         for server_name, shards in payload["servers"].items():
             try:
                 if "[" in server_name:
                     server_name = f"Server{generate_random_id()%10000}"
+
+                sm_payload_servers_dict[server_name] = shards
 
                 res = os.popen(
                     f"sudo docker run --platform linux/x86_64 --name {server_name} --network pub --network-alias {server_name} -d ds_server:latest"
@@ -575,6 +586,13 @@ def add():
             except Exception as e:
                 print(e)
 
+        sm_payload = {}
+        sm_payload["servers"] = sm_payload_servers_dict
+        try:
+            res = requests.post("http://shard_manager_1:5000/add", json=sm_payload)
+        except Exception as e:
+            print(e)
+
         response = {}
 
         response["N"] = serverMap.getServersCount()
@@ -626,6 +644,13 @@ def remove():
             shardList = serverMap.removeServer(serverId)
             shardMap.removeServerFromShard(shardList, serverId)
 
+        sm_payload = {}
+        sm_payload["servers"] = serversToDel
+        try:
+            res = requests.delete("http://shard_manager_1:5000/rm", json=sm_payload)
+        except Exception as e:
+            raise e
+
         response = {
             "message": {"N": payload["n"], "servers": serversToDelNames},
             "status": "successful",
@@ -650,29 +675,12 @@ def read():
     for shardFragment in shardFragments:
         server_id = shardFragment["server_id"]
         server_name = serverMap.getNameFromId(server_id)
-        try:
-            res = requests.get(f"http://{server_name}:5000/heartbeat")
-        except:
-            shardsInServer = serverMap.getStatus(server_id)
-            payload = {"n": 1, "servers": [server_name]}
-            res = requests.delete(f"http://localhost:5000/rm", json=payload)
-            payload = {
-                "n": 1,
-                "new_shards": [],
-                "servers": {
-                    server_name: [
-                        shardMap.getNameFromId(shardId) for shardId in shardsInServer
-                    ]
-                },
-            }
-            res = requests.post(f"http://localhost:5000/add", json=payload)
 
-        finally:
-            shardFragment["server_id"] = serverMap.getIdFromName(server_name)
-            data = serverMap.getData(shardFragment, studId)
-            for _ in data:
-                _.pop("id")
-                result.append(_)
+        shardFragment["server_id"] = serverMap.getIdFromName(server_name)
+        data = serverMap.getData(shardFragment, studId)
+        for _ in data:
+            _.pop("id")
+            result.append(_)
 
     response = {"shards_queried": [], "data": result, "status": "success"}
 
@@ -684,6 +692,44 @@ def read():
     return response, 200
 
 
+@app.route("/read/<serverName>", methods=["GET"])
+def readServer(serverName):
+    response = {}
+    res = requests.get("http://localhost:5000/status").json()
+
+    serversList = res["servers"].keys()
+    if serverName not in serversList:
+        response["message"] = "Requested server does not exist"
+        response["status"] = "failure"
+        return response, 400
+
+    shard_limits = {}
+    for shardData in res["shards"]:
+        shard_limits[shardData["Shard_id"]] = {
+            "low": shardData["Stud_id_low"],
+            "high": shardData["Stud_id_low"] + shardData["Shard_size"] - 1,
+        }
+
+    shardsOnServer = res["servers"][serverName]
+
+    response = {}
+
+    for shard in shardsOnServer:
+        shardPayload = {"shard": shard, "Stud_id": shard_limits[shard]}
+        try:
+            res = requests.get(
+                f"http://{serverName}:5000/read", json=shardPayload
+            ).json()
+            response[shard] = res["data"]
+        except Exception as e:
+            response["message"] = str(e)
+            response["status"] = "failure"
+            return response, 500
+
+    response["status"] = "success"
+    return response, 200
+
+
 @app.route("/write", methods=["POST"])
 def write():
     payload = request.json
@@ -691,7 +737,6 @@ def write():
     shardWiseData = {}
 
     shardMap = ShardMap()
-    serverMap = ServerMap()
 
     for data in payload["data"]:
         shard_id = shardMap.getShardIdFromStudId(data["Stud_id"])
@@ -708,8 +753,10 @@ def write():
         multi_lock_dict.acquire_lock(shard_id)
 
         try:
-            serversList = shardMap.getAllServersFromShardId(shard_id)
-            serverMap.insertBulkData(serversList, shard_id, data)
+            shardName = shardMap.getNameFromId(shard_id)
+            req_payload = {"shard": shardName, "data": data}
+            res = requests.post(f"http://shard_manager_1:5000/write", json=req_payload)
+
         except Exception as e:
             return {
                 "message": str(e),
@@ -735,7 +782,6 @@ def update():
             raise Exception("<ERROR> Student ID does not match!")
 
         shardMap = ShardMap()
-        serverMap = ServerMap()
 
         shard_id = shardMap.getShardIdFromStudId(payload["Stud_id"])
 
@@ -744,8 +790,15 @@ def update():
         multi_lock_dict.acquire_lock(shard_id)
 
         try:
-            serversList = shardMap.getAllServersFromShardId(shard_id)
-            serverMap.updateData(serversList, shard_id, payload["data"])
+            shardName = shardMap.getNameFromId(shard_id)
+            req_payload = {
+                "data": payload["data"],
+                "shard": shardName,
+                "Stud_id": payload["Stud_id"],
+            }
+
+            res = requests.put(f"http://shard_manager_1:5000/update", json=req_payload)
+
         except Exception as e:
             return {
                 "message": str(e),
@@ -769,7 +822,6 @@ def delete():
     payload = request.json
 
     shardMap = ShardMap()
-    serverMap = ServerMap()
 
     shard_id = shardMap.getShardIdFromStudId(payload["Stud_id"])
 
@@ -777,8 +829,10 @@ def delete():
     multi_lock_dict.acquire_lock(shard_id)
 
     try:
-        serversList = shardMap.getAllServersFromShardId(shard_id)
-        serverMap.delData(serversList, shard_id, payload["Stud_id"])
+        shardName = shardMap.getNameFromId(shard_id)
+        req_payload = {"shard": shardName, "Stud_id": payload["Stud_id"]}
+        res = requests.delete(f"http://shard_manager_1:5000/del", json=req_payload)
+
     except Exception as e:
         return {
             "message": str(e),

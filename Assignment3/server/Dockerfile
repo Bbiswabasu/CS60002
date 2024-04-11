@@ -15,6 +15,7 @@ RUN chmod +x /app/custom-entry.sh
 ENV USER=theuser
 RUN adduser --home /home/$USER --disabled-password --gecos GECOS $USER \
   && chsh -s /bin/zsh $USER
+RUN chown -R $USER /app
 
 USER $USER
 ENV HOME=/home/$USER
