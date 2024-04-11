@@ -229,7 +229,7 @@ class Shard:
         id_low = self.student_id_low
         id_high = self.student_id_low + self.shard_size
 
-        if id_low > id_limits["high"] or id_high < id_limits["low"]:
+        if id_low >= id_limits["high"] or id_high < id_limits["low"]:
             return False
 
         return True

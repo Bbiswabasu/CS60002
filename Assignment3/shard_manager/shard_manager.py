@@ -12,14 +12,14 @@ def periodic_heart_beat():
     while True:
         shardManager = ShardManager()
         shardNameToServerMap = shardManager.getShardNameToServerMap()
-
+        
         for shardName in shardNameToServerMap:
             serverMap = shardNameToServerMap[shardName]
 
             serverMap.runPrimaryElection(shardName)
 
             primaryServerName = serverMap.getPrimaryServerName()
-
+            
 
             serversList = serverMap.getServersList()
             for server in serversList:
@@ -42,9 +42,9 @@ def periodic_heart_beat():
                         f"http://{primaryServerName}:5000/get_wal", json=req_body
                     ).json()
                     
-                
+                    
                     req_body = {"logRequests": WAL_log, "shards": [shardName]}
-
+                     
                     while True:
                         try:
                             res = requests.post(
@@ -66,6 +66,7 @@ class ServerMap:
         self.serversList = []
 
     def printIt(self):
+
         for server in self.serversList:
             print(server, flush=True)
 
@@ -156,7 +157,9 @@ class ShardManager:
 
     def printIt(self):
         for shardName, serverMap in self.shardNameToServerMap.items():
+            print(f"ShardName - {shardName}",flush=True)
             serverMap.printIt()
+            print("--------",flush=True)
 
 
 @app.route("/primary-elect", methods=["GET"])
