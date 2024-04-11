@@ -12,14 +12,13 @@ def periodic_heart_beat():
     while True:
         shardManager = ShardManager()
         shardNameToServerMap = shardManager.getShardNameToServerMap()
-        
+
         for shardName in shardNameToServerMap:
             serverMap = shardNameToServerMap[shardName]
 
             serverMap.runPrimaryElection(shardName)
 
             primaryServerName = serverMap.getPrimaryServerName()
-            
 
             serversList = serverMap.getServersList()
             for server in serversList:
@@ -35,16 +34,15 @@ def periodic_heart_beat():
                     ).read()
                     if len(res) == 0:
                         raise
-                    
+
                     req_body = {"shard": shardName}
 
                     WAL_log = requests.get(
                         f"http://{primaryServerName}:5000/get_wal", json=req_body
                     ).json()
-                    
-                    
+
                     req_body = {"logRequests": WAL_log, "shards": [shardName]}
-                     
+
                     while True:
                         try:
                             res = requests.post(
@@ -76,9 +74,9 @@ class ServerMap:
     def removeServer(self, serverName):
         if serverName in self.serversList:
             self.serversList.remove(serverName)
-        
-        if serverName==self.primaryServerName:
-            self.primaryServerName=None
+
+        if serverName == self.primaryServerName:
+            self.primaryServerName = None
 
     def runPrimaryElection(self, shardName):
         try:
@@ -86,8 +84,8 @@ class ServerMap:
             return
         except:
             pass
-        
-        if self.primaryServerName!=None:
+
+        if self.primaryServerName != None:
             self.serversList.append(self.primaryServerName)
 
         wal_count = -2
@@ -109,7 +107,6 @@ class ServerMap:
         self.primaryServerName = new_server_name
         if new_server_name in self.serversList:
             self.serversList.remove(self.primaryServerName)
-            
 
     def getPrimaryServerName(self):
         return self.primaryServerName
@@ -140,10 +137,10 @@ class ShardManager:
         serverMap.runPrimaryElection(shardName)
 
         return serverMap.getPrimaryServerName()
-    
-    def getServersListFromShardName(self,shardName):
+
+    def getServersListFromShardName(self, shardName):
         return self.shardNameToServerMap[shardName].getServersList()
-    
+
     def getShardNameToServerMap(self):
         return self.shardNameToServerMap
 
@@ -157,9 +154,7 @@ class ShardManager:
 
     def printIt(self):
         for shardName, serverMap in self.shardNameToServerMap.items():
-            print(f"ShardName - {shardName}",flush=True)
             serverMap.printIt()
-            print("--------",flush=True)
 
 
 @app.route("/primary-elect", methods=["GET"])
@@ -198,90 +193,82 @@ def rm():
 
     return {"message": "Successful in /rm route of shard-manager"}, 200
 
-@app.route("/write",methods=["POST"])
+
+@app.route("/write", methods=["POST"])
 def write():
-    payload=request.json
-    
-    shardManager=ShardManager()
+    payload = request.json
 
-    serversList=shardManager.getServersListFromShardName(payload['shard'])
+    shardManager = ShardManager()
 
-    primaryServerName=shardManager.getPrimaryServerForShard(payload['shard'])
-    
-    req_body={
-        "data":payload['data'],
-        "followers":serversList,
-        "shard":payload['shard']
+    serversList = shardManager.getServersListFromShardName(payload["shard"])
+
+    primaryServerName = shardManager.getPrimaryServerForShard(payload["shard"])
+
+    req_body = {
+        "data": payload["data"],
+        "followers": serversList,
+        "shard": payload["shard"],
     }
-    
+
     try:
         res = requests.post(f"http://{primaryServerName}:5000/write", json=req_body)
     except Exception as e:
         print(e)
-    
-    response={
-        "message":"Succesfully Inserted data",
-        "status":"Sucessful"
-    }
-    
-    return response,200
 
-@app.route("/update",methods=["PUT"])
+    response = {"message": "Succesfully Inserted data", "status": "Sucessful"}
+
+    return response, 200
+
+
+@app.route("/update", methods=["PUT"])
 def update():
-    payload=request.json 
-    shardManager=ShardManager()
+    payload = request.json
+    shardManager = ShardManager()
 
-    serversList=shardManager.getServersListFromShardName(payload['shard'])
-    
-    primaryServerName=shardManager.getPrimaryServerForShard(payload['shard'])
-    
+    serversList = shardManager.getServersListFromShardName(payload["shard"])
+    primaryServerName = shardManager.getPrimaryServerForShard(payload["shard"])
 
-    req_body={
-        "data":payload['data'],
-        "followers":serversList,
-        "shard":payload['shard'],
-        "Stud_id":payload['Stud_id']
-       }
-     
+    req_body = {
+        "data": payload["data"],
+        "followers": serversList,
+        "shard": payload["shard"],
+        "Stud_id": payload["Stud_id"],
+    }
+
     try:
         res = requests.post(f"http://{primaryServerName}:5000/update", json=req_body)
     except Exception as e:
         print(e)
-    
-    response={
-        "message":"Succesfully Updated data",
-        "status":"Sucessful"
-    }
-    
-    return response,200
 
-@app.route("/del",methods=["DELETE"])
+    response = {"message": "Succesfully Updated data", "status": "Sucessful"}
+
+    return response, 200
+
+
+@app.route("/del", methods=["DELETE"])
 def delete():
-    payload=request.json
+    payload = request.json
 
-    shardManager=ShardManager()
+    shardManager = ShardManager()
 
-    serversList=shardManager.getServersListFromShardName(payload['shard'])
-    
-    primaryServerName=shardManager.getPrimaryServerForShard(payload['shard'])
+    serversList = shardManager.getServersListFromShardName(payload["shard"])
 
-    req_body={
-        "followers":serversList,
-        "shard":payload['shard'],
-        "Stud_id":payload['Stud_id']
-       }
-    
+    primaryServerName = shardManager.getPrimaryServerForShard(payload["shard"])
+
+    req_body = {
+        "followers": serversList,
+        "shard": payload["shard"],
+        "Stud_id": payload["Stud_id"],
+    }
+
     try:
         res = requests.delete(f"http://{primaryServerName}:5000/del", json=req_body)
     except Exception as e:
         print(e)
-    
-    response={
-        "message":"Succesfully Delete data",
-        "status":"Sucessful"
-    }
-    
-    return response,200
+
+    response = {"message": "Succesfully Delete data", "status": "Sucessful"}
+
+    return response, 200
 
 
 if __name__ == "__main__":

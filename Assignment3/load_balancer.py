@@ -227,9 +227,9 @@ class Shard:
 
     def isDataPresent(self, id_limits):
         id_low = self.student_id_low
-        id_high = self.student_id_low + self.shard_size
+        id_high = self.student_id_low + self.shard_size - 1
 
-        if id_low >= id_limits["high"] or id_high < id_limits["low"]:
+        if id_low > id_limits["high"] or id_high < id_limits["low"]:
             return False
 
         return True
@@ -414,17 +414,6 @@ class ShardMap:
 
 
 schema = None
-
-
-# @app.route("/checkSM", methods=["GET"])
-# def checkSM():
-#     try:
-#         res = requests.get("http://shard_manager_1:5000/check")
-#     except Exception as e:
-#         print(e)
-#         return {"message": "ERROR", "status": "failure"}, 400
-#     response = {"message": "Active", "status": "success"}
-#     return response, 200
 
 
 @app.route("/init", methods=["POST"])
@@ -764,13 +753,8 @@ def write():
         multi_lock_dict.acquire_lock(shard_id)
 
         try:
-            shardName=shardMap.getNameFromId(shard_id)
-
-            req_payload = {
-            "shard": shardName,
-            "data": data
-            }
-            
+            shardName = shardMap.getNameFromId(shard_id)
+            req_payload = {"shard": shardName, "data": data}
             res = requests.post(f"http://shard_manager_1:5000/write", json=req_payload)
 
         except Exception as e:
@@ -805,17 +789,16 @@ def update():
 
         multi_lock_dict.acquire_lock(shard_id)
 
-        try: 
-            shardName=shardMap.getNameFromId(shard_id)
-            
-            req_payload={
-                "data":payload['data'],
-                "shard":shardName,
-                "Stud_id":payload["Stud_id"]
+        try:
+            shardName = shardMap.getNameFromId(shard_id)
+            req_payload = {
+                "data": payload["data"],
+                "shard": shardName,
+                "Stud_id": payload["Stud_id"],
             }
-            
+
             res = requests.put(f"http://shard_manager_1:5000/update", json=req_payload)
-            
+
         except Exception as e:
             return {
                 "message": str(e),
@@ -846,17 +829,10 @@ def delete():
     multi_lock_dict.acquire_lock(shard_id)
 
     try:
-        shardName=shardMap.getNameFromId(shard_id)
-            
-        req_payload={
-            "shard":shardName,
-            "Stud_id":payload["Stud_id"]
-        }
-        
-        print(req_payload,flush=True)
-        
+        shardName = shardMap.getNameFromId(shard_id)
+        req_payload = {"shard": shardName, "Stud_id": payload["Stud_id"]}
         res = requests.delete(f"http://shard_manager_1:5000/del", json=req_payload)
-        
+
     except Exception as e:
         return {
             "message": str(e),
