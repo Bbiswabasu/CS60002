@@ -12,14 +12,23 @@ def periodic_heart_beat():
     while True:
         shardManager = ShardManager()
         shardNameToServerMap = shardManager.getShardNameToServerMap()
-        
+        print("---------~~~-----------",flush=True)
+        print("Periodic Heartbeat",flush=True)
+        shardManager.printIt()
+        print("=======",flush=True)
+
         for shardName in shardNameToServerMap:
             serverMap = shardNameToServerMap[shardName]
-
-            serverMap.runPrimaryElection(shardName)
-
-            primaryServerName = serverMap.getPrimaryServerName()
             
+            print("Before Election",flush=True)
+            serverMap.printIt()
+            print("||||||||||||||",flush=True)
+            serverMap.runPrimaryElection(shardName)
+           
+            primaryServerName = serverMap.getPrimaryServerName()
+
+            print("After Election",flush=True)             
+            serverMap.printIt()
 
             serversList = serverMap.getServersList()
             for server in serversList:
@@ -28,28 +37,32 @@ def periodic_heart_beat():
                     continue
                 except:
                     pass
-
+                
+                print(f"Respawning - {server}",flush=True)
                 try:
                     res = os.popen(
-                        f"sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest"
+                        f"sudo docker stop {server} && sudo docker rm {server} && sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest"
                     ).read()
                     if len(res) == 0:
                         raise
                     
                     req_body = {"shard": shardName}
-
+                    
+                    print(f"Making WAL log request - {primaryServerName}",flush=True)
                     WAL_log = requests.get(
                         f"http://{primaryServerName}:5000/get_wal", json=req_body
                     ).json()
                     
-                    
+                    print("Received WAL Log request",flush=True)
                     req_body = {"logRequests": WAL_log, "shards": [shardName]}
                      
                     while True:
                         try:
+                            print(f"/config to {server}",flush=True)
                             res = requests.post(
                                 f"http://{server}:5000/config", json=req_body
                             )
+                            print("/config successfull",flush=True)
                             break
                         except Exception as e:
                             print(e)
@@ -66,7 +79,8 @@ class ServerMap:
         self.serversList = []
 
     def printIt(self):
-
+        print(f"Primary Server - {self.primaryServerName}",flush=True)
+        print("ServerList",flush=True)
         for server in self.serversList:
             print(server, flush=True)
 
@@ -81,6 +95,7 @@ class ServerMap:
             self.primaryServerName=None
 
     def runPrimaryElection(self, shardName):
+        print(f"Election For Shard - {shardName}",flush=True)
         try:
             res = requests.get(f"http://{self.primaryServerName}:5000/heartbeat")
             return
@@ -96,16 +111,25 @@ class ServerMap:
         for serverName in self.serversList:
             try:
                 req_body = {"shard": shardName}
+                print(f"Election Request - {serverName}",flush=True)
                 res = requests.get(
                     f"http://{serverName}:5000/get_wal_count", json=req_body
-                ).json()
+                )
+                
+                print("LINE 119",flush=True)
+                print(res,flush=True)
+                res=res.json()
+                print("LINE 122",flush=True)
+                print(res,flush=True)
 
                 if res["count"] > wal_count:
                     wal_count = res["count"]
                     new_server_name = serverName
+                print("Election Succesfull",flush=True)
             except:
                 pass
-
+        
+        print(f"Chosen Server - {new_server_name}",flush=True)
         self.primaryServerName = new_server_name
         if new_server_name in self.serversList:
             self.serversList.remove(self.primaryServerName)
