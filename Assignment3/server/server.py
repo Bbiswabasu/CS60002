@@ -45,6 +45,7 @@ def config():
             managers[shardName] = Manager(
                 shardName, payload["schema"]["columns"], payload["schema"]["dtypes"]
             )
+
             message += f"Server0: {shardName}, "
             if os.path.exists(f"{shardName}_logs"):
                 os.remove(f"{shardName}_logs")
@@ -223,5 +224,9 @@ def getWALCount():
     return response, 200
 
 
+@app.before_request
+def log_request_info():
+    app.logger.debug("Body: %s", request.get_json())
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

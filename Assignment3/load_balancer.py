@@ -479,6 +479,7 @@ def init():
 
     sm_payload = {}
     sm_payload["servers"] = payload["servers"]
+    sm_payload["schema"] = schema
     try:
         res = requests.post("http://shard_manager_1:5000/add", json=sm_payload)
     except Exception as e:
@@ -764,13 +765,10 @@ def write():
         multi_lock_dict.acquire_lock(shard_id)
 
         try:
-            shardName=shardMap.getNameFromId(shard_id)
+            shardName = shardMap.getNameFromId(shard_id)
 
-            req_payload = {
-            "shard": shardName,
-            "data": data
-            }
-            
+            req_payload = {"shard": shardName, "data": data}
+
             res = requests.post(f"http://shard_manager_1:5000/write", json=req_payload)
 
         except Exception as e:
@@ -805,17 +803,17 @@ def update():
 
         multi_lock_dict.acquire_lock(shard_id)
 
-        try: 
-            shardName=shardMap.getNameFromId(shard_id)
-            
-            req_payload={
-                "data":payload['data'],
-                "shard":shardName,
-                "Stud_id":payload["Stud_id"]
+        try:
+            shardName = shardMap.getNameFromId(shard_id)
+
+            req_payload = {
+                "data": payload["data"],
+                "shard": shardName,
+                "Stud_id": payload["Stud_id"],
             }
-            
+
             res = requests.put(f"http://shard_manager_1:5000/update", json=req_payload)
-            
+
         except Exception as e:
             return {
                 "message": str(e),
@@ -846,17 +844,14 @@ def delete():
     multi_lock_dict.acquire_lock(shard_id)
 
     try:
-        shardName=shardMap.getNameFromId(shard_id)
-            
-        req_payload={
-            "shard":shardName,
-            "Stud_id":payload["Stud_id"]
-        }
-        
-        print(req_payload,flush=True)
-        
+        shardName = shardMap.getNameFromId(shard_id)
+
+        req_payload = {"shard": shardName, "Stud_id": payload["Stud_id"]}
+
+        print(req_payload, flush=True)
+
         res = requests.delete(f"http://shard_manager_1:5000/del", json=req_payload)
-        
+
     except Exception as e:
         return {
             "message": str(e),
