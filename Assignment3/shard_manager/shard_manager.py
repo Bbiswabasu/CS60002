@@ -19,6 +19,7 @@ def periodic_heart_beat():
         shardManager.printIt()
         print("=======", flush=True)
 
+        shardsInServer = {}
         for shardName in shardNameToServerMap:
             serverMap = shardNameToServerMap[shardName]
 
@@ -32,23 +33,32 @@ def periodic_heart_beat():
             print("After Election", flush=True)
             serverMap.printIt()
 
-            serversList = serverMap.getServersList()
-            for server in serversList:
-                try:
-                    res = requests.get(f"http://{server}:5000/heartbeat")
-                    continue
-                except:
-                    pass
+            for server in serverMap.getServersList():
+                if server not in shardsInServer.keys():
+                    shardsInServer[server] = list()
+                shardsInServer[server].append(shardName)
 
-                print(f"Respawning - {server}", flush=True)
-                try:
-                    res = os.popen(
-                        f"sudo docker stop {server} && sudo docker rm {server} && sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest"
-                    ).read()
-                    if len(res) == 0:
-                        raise
+        for server in shardsInServer.keys():
+            try:
+                res = requests.get(f"http://{server}:5000/heartbeat")
+                continue
+            except:
+                pass
+
+            print(f"Respawning - {server}", flush=True)
+            try:
+                res = os.popen(
+                    f"sudo docker stop {server} && sudo docker rm {server} && sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest"
+                ).read()
+                if len(res) == 0:
+                    raise
+
+                for shardName in shardsInServer[server]:
 
                     req_body = {"shard": shardName}
+
+                    serverMap = shardNameToServerMap[shardName]
+                    primaryServerName = serverMap.getPrimaryServerName()
 
                     print(f"Making WAL log request - {primaryServerName}", flush=True)
                     WAL_log = requests.get(
@@ -73,8 +83,60 @@ def periodic_heart_beat():
                         except Exception as e:
                             print(e)
                             time.sleep(3)
-                except:
-                    print("Error in spawning new server")
+            except:
+                print("Error in spawning new server")
+
+                # try:
+                #     res = os.popen(
+                #         f"sudo docker stop {server} && sudo docker rm {server} && sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest"
+                #     ).read()
+                #     if len(res) == 0:
+                #         raise
+
+                #     for shardName, serversList in shardNameToServerMap.items():
+                #         if server not in serversList:
+                #             continue
+                #         serverMap = shardNameToServerMap[shardName]
+                #         serverMap.runPrimaryElection(shardName)
+                #         primaryServerName = serverMap.getPrimaryServerName()
+
+                #         print("----LINE58-----", flush=True)
+                #         print(shardName, flush=True)
+                #         print("----LINE60-----", flush=True)
+                #         print(primaryServerName, flush=True)
+
+                #         req_body = {"shard": shardName}
+
+                #         print(
+                #             f"Making WAL log request - {primaryServerName}", flush=True
+                #         )
+                #         WAL_log = requests.get(
+                #             f"http://{primaryServerName}:5000/get_wal", json=req_body
+                #         ).json()
+
+                #         print("Received WAL Log request", flush=True)
+                #         req_body = {
+                #             "logRequests": WAL_log["data"],
+                #             "shards": [shardName],
+                #             "schema": schema,
+                #         }
+
+                #         print("----LINE79-----", flush=True)
+                #         print(req_body, flush=True)
+
+                #         while True:
+                #             try:
+                #                 print(f"/config to {server}", flush=True)
+                #                 res = requests.post(
+                #                     f"http://{server}:5000/config", json=req_body
+                #                 )
+                #                 print("/config successfull", flush=True)
+                #                 break
+                #             except Exception as e:
+                #                 print(e)
+                #                 time.sleep(3)
+                # except:
+                #     print("Error in spawning new server")
 
         time.sleep(15)
 
@@ -186,9 +248,7 @@ class ShardManager:
 
     def printIt(self):
         for shardName, serverMap in self.shardNameToServerMap.items():
-            print(f"ShardName - {shardName}", flush=True)
             serverMap.printIt()
-            print("--------", flush=True)
 
 
 @app.route("/primary-elect", methods=["GET"])
@@ -262,7 +322,6 @@ def update():
     shardManager = ShardManager()
 
     serversList = shardManager.getServersListFromShardName(payload["shard"])
-
     primaryServerName = shardManager.getPrimaryServerForShard(payload["shard"])
 
     req_body = {

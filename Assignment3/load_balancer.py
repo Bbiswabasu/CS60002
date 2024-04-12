@@ -227,9 +227,9 @@ class Shard:
 
     def isDataPresent(self, id_limits):
         id_low = self.student_id_low
-        id_high = self.student_id_low + self.shard_size
+        id_high = self.student_id_low + self.shard_size - 1
 
-        if id_low >= id_limits["high"] or id_high < id_limits["low"]:
+        if id_low > id_limits["high"] or id_high < id_limits["low"]:
             return False
 
         return True
@@ -416,17 +416,6 @@ class ShardMap:
 schema = None
 
 
-# @app.route("/checkSM", methods=["GET"])
-# def checkSM():
-#     try:
-#         res = requests.get("http://shard_manager_1:5000/check")
-#     except Exception as e:
-#         print(e)
-#         return {"message": "ERROR", "status": "failure"}, 400
-#     response = {"message": "Active", "status": "success"}
-#     return response, 200
-
-
 @app.route("/init", methods=["POST"])
 def init():
     payload = request.json
@@ -600,6 +589,7 @@ def add():
 
         sm_payload = {}
         sm_payload["servers"] = sm_payload_servers_dict
+        sm_payload["schema"] = schema
         try:
             res = requests.post("http://shard_manager_1:5000/add", json=sm_payload)
         except Exception as e:
@@ -732,7 +722,10 @@ def readServer(serverName):
             res = requests.get(
                 f"http://{serverName}:5000/read", json=shardPayload
             ).json()
-            response[shard] = res["data"]
+            response[shard] = []
+            for _ in res["data"]:
+                _.pop("id")
+                response[shard].append(_)
         except Exception as e:
             response["message"] = str(e)
             response["status"] = "failure"
@@ -805,7 +798,6 @@ def update():
 
         try:
             shardName = shardMap.getNameFromId(shard_id)
-
             req_payload = {
                 "data": payload["data"],
                 "shard": shardName,
