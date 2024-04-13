@@ -595,7 +595,7 @@ def remove():
                 serversToDelNames.append(serverName)
 
         sm_payload = {}
-        sm_payload["servers"] = serversToDel
+        sm_payload["servers"] = serversToDelNames
         try:
             res = requests.delete("http://shard_manager_1:5000/rm", json=sm_payload)
         except Exception as e:
@@ -791,8 +791,6 @@ def delete():
         shardName = shardMap.getNameFromId(shard_id)
 
         req_payload = {"shard": shardName, "Stud_id": payload["Stud_id"]}
-
-        print(req_payload, flush=True)
 
         res = requests.delete(f"http://shard_manager_1:5000/del", json=req_payload)
 

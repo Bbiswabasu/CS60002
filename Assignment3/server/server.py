@@ -34,10 +34,7 @@ def executeLog(logRequests):
 @app.route("/config", methods=["POST"])
 def config():
     payload = request.json
-    
-    print("##########",flush=True)
-    print(payload,flush=True)
-    print("############",flush=True)
+
     logRequests = payload.get("logRequests", [])
     message = ""
     for shardName in payload["shards"]:
@@ -191,11 +188,7 @@ def delete():
 @app.route("/get_wal", methods=["GET"])
 def getWAL():
     payload = request.json
-    
-    print("GET  WAL",flush=True)
-    print("**********",flush=True)
-    print(payload,flush=True)
-    print("***********",flush=True)
+
 
     shardName = payload["shard"]
     if not os.path.exists(f"{shardName}_logs"):
@@ -204,10 +197,7 @@ def getWAL():
         logs = open(f"{shardName}_logs", "r")
         response = {"data": logs.readlines(), "status": "success"}
         logs.close()
-    
-    print("**********",flush=True)
-    print(response,flush=True)
-    print("***********",flush=True)
+
     return response, 200
 
 
@@ -227,6 +217,7 @@ def getWALCount():
 @app.before_request
 def log_request_info():
     app.logger.debug("Body: %s", request.get_json())
-    
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
