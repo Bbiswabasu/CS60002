@@ -48,10 +48,12 @@ def periodic_heart_beat():
             print(f"Respawning - {server}", flush=True)
             try:
                 res = os.popen(
-                    f"sudo docker stop {server} && sudo docker rm {server} && sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest"
+                    f"sudo docker stop {server} ; sudo docker rm {server} ; sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest"
                 ).read()
                 if len(res) == 0:
                     raise
+
+                print(shardsInServer[server], flush=True)
 
                 for shardName in shardsInServer[server]:
 
@@ -60,23 +62,25 @@ def periodic_heart_beat():
                     serverMap = shardNameToServerMap[shardName]
                     primaryServerName = serverMap.getPrimaryServerName()
 
-                    print(f"Making WAL log request - {primaryServerName}", flush=True)
-                    WAL_log = requests.get(
-                        f"http://{primaryServerName}:5000/get_wal", json=req_body
-                    ).json()
-
-                    print("Received WAL Log request", flush=True)
-                    req_body = {
-                        "logRequests": WAL_log["data"],
+                    config_req_body = {
                         "shards": [shardName],
                         "schema": schema,
                     }
+                    if primaryServerName is not None:
+                        print(
+                            f"Making WAL log request - {primaryServerName}", flush=True
+                        )
+                        WAL_log = requests.get(
+                            f"http://{primaryServerName}:5000/get_wal", json=req_body
+                        ).json()
+                        config_req_body["logRequests"] = WAL_log["data"]
 
+                    print("Received WAL Log request", flush=True)
                     while True:
                         try:
                             print(f"/config to {server}", flush=True)
                             res = requests.post(
-                                f"http://{server}:5000/config", json=req_body
+                                f"http://{server}:5000/config", json=config_req_body
                             )
                             print("/config successfull", flush=True)
                             break
@@ -85,58 +89,6 @@ def periodic_heart_beat():
                             time.sleep(3)
             except:
                 print("Error in spawning new server")
-
-                # try:
-                #     res = os.popen(
-                #         f"sudo docker stop {server} && sudo docker rm {server} && sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest"
-                #     ).read()
-                #     if len(res) == 0:
-                #         raise
-
-                #     for shardName, serversList in shardNameToServerMap.items():
-                #         if server not in serversList:
-                #             continue
-                #         serverMap = shardNameToServerMap[shardName]
-                #         serverMap.runPrimaryElection(shardName)
-                #         primaryServerName = serverMap.getPrimaryServerName()
-
-                #         print("----LINE58-----", flush=True)
-                #         print(shardName, flush=True)
-                #         print("----LINE60-----", flush=True)
-                #         print(primaryServerName, flush=True)
-
-                #         req_body = {"shard": shardName}
-
-                #         print(
-                #             f"Making WAL log request - {primaryServerName}", flush=True
-                #         )
-                #         WAL_log = requests.get(
-                #             f"http://{primaryServerName}:5000/get_wal", json=req_body
-                #         ).json()
-
-                #         print("Received WAL Log request", flush=True)
-                #         req_body = {
-                #             "logRequests": WAL_log["data"],
-                #             "shards": [shardName],
-                #             "schema": schema,
-                #         }
-
-                #         print("----LINE79-----", flush=True)
-                #         print(req_body, flush=True)
-
-                #         while True:
-                #             try:
-                #                 print(f"/config to {server}", flush=True)
-                #                 res = requests.post(
-                #                     f"http://{server}:5000/config", json=req_body
-                #                 )
-                #                 print("/config successfull", flush=True)
-                #                 break
-                #             except Exception as e:
-                #                 print(e)
-                #                 time.sleep(3)
-                # except:
-                #     print("Error in spawning new server")
 
         time.sleep(15)
 
