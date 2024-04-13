@@ -118,26 +118,26 @@ To analyse the performance of our developed distributed database, we executed 10
 ### A1: 6 Servers, 4 Shards, 3 Replicas
 
 ![alt text](images/a1_read.png)
-Read speed: 158.35 /s
+Read speed: 105.31 /s
 
 ![alt text](images/a1_write.png)
-Write speed: 71.54 /s
+Write speed: 28.78 /s
 
 ### A2: 6 Servers, 4 Shards, 6 Replicas
 
 ![alt text](images/a2_read.png)
-Read speed: 165.66 /s
+Read speed: 138.06 /s
 
 ![alt text](images/a2_write.png)
-Write speed: 38.11 /s
+Write speed: 18.63 /s
 
 ### A3: 10 Servers, 6 Shards, 8 Replicas
 
 ![alt text](images/a3_read.png)
-Read speed: 158.02 /s
+Read speed: 145.43 /s
 
 ![alt text](images/a3_write.png)
-Write speed: 26.94 /s
+Write speed: 16.86 /s
 
 ### Observations
 
