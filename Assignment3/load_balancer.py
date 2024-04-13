@@ -468,6 +468,7 @@ def init():
 
     sm_payload = {}
     sm_payload["servers"] = payload["servers"]
+    sm_payload["schema"] = schema
     try:
         res = requests.post("http://shard_manager_1:5000/add", json=sm_payload)
     except Exception as e:
@@ -526,68 +527,21 @@ def add():
                     server_name = f"Server{generate_random_id()%10000}"
 
                 sm_payload_servers_dict[server_name] = shards
-
-                res = os.popen(
-                    f"sudo docker run --platform linux/x86_64 --name {server_name} --network pub --network-alias {server_name} -d ds_server:latest"
-                ).read()
-
-                if len(res) == 0:
-                    raise
-
-                shardWiseData = {}
-
-                for shard in shards:
-                    mapped_server_id = shardMap.getLoadBalancedServerForShard(shard)
-                    if mapped_server_id == -1:
-                        continue
-
-                    mapped_server_name = serverMap.getNameFromId(mapped_server_id)
-                    payload = {"shards": [shard]}
-                    res = requests.get(
-                        f"http://{mapped_server_name}:5000/copy", json=payload
-                    )
-                    response_data = []
-                    for data in res.json()["message"]:
-                        data.pop("id")
-                        response_data.append(data)
-                    shardWiseData[shard] = response_data
-
                 serverMap.addServer(server_name)
-
                 addedServerNames.append(server_name)
-
                 server_id = serverMap.getIdFromName(server_name)
 
-                shard_ids = []
                 for shard in shards:
                     shardMap.addServerToShard(shard, server_id)
                     shard_id = shardMap.getIdFromName(shard)
                     serverMap.addShardToServer(server_id, shard_id, shard)
-
-                    shard_ids.append(shard)
-
-                req_body = {"schema": schema, "shards": shard_ids}
-                while True:
-                    try:
-                        res = requests.post(
-                            f"http://{server_name}:5000/config", json=req_body
-                        )
-                        break
-                    except Exception as e:
-                        print(e)
-                        time.sleep(3)
-
-                for shard in shards:
-                    shard_id = shardMap.getIdFromName(shard)
-                    serverMap.insertBulkData(
-                        [server_id], shard_id, shardWiseData[shard]
-                    )
 
             except Exception as e:
                 print(e)
 
         sm_payload = {}
         sm_payload["servers"] = sm_payload_servers_dict
+        sm_payload["schema"] = schema
         try:
             res = requests.post("http://shard_manager_1:5000/add", json=sm_payload)
         except Exception as e:
@@ -640,16 +594,16 @@ def remove():
                 serversToDel.append(serverId)
                 serversToDelNames.append(serverName)
 
-        for serverId in serversToDel:
-            shardList = serverMap.removeServer(serverId)
-            shardMap.removeServerFromShard(shardList, serverId)
-
         sm_payload = {}
-        sm_payload["servers"] = serversToDel
+        sm_payload["servers"] = serversToDelNames
         try:
             res = requests.delete("http://shard_manager_1:5000/rm", json=sm_payload)
         except Exception as e:
             raise e
+
+        for serverId in serversToDel:
+            shardList = serverMap.removeServer(serverId)
+            shardMap.removeServerFromShard(shardList, serverId)
 
         response = {
             "message": {"N": payload["n"], "servers": serversToDelNames},
@@ -720,7 +674,10 @@ def readServer(serverName):
             res = requests.get(
                 f"http://{serverName}:5000/read", json=shardPayload
             ).json()
-            response[shard] = res["data"]
+            response[shard] = []
+            for _ in res["data"]:
+                _.pop("id")
+                response[shard].append(_)
         except Exception as e:
             response["message"] = str(e)
             response["status"] = "failure"
@@ -754,7 +711,9 @@ def write():
 
         try:
             shardName = shardMap.getNameFromId(shard_id)
+
             req_payload = {"shard": shardName, "data": data}
+
             res = requests.post(f"http://shard_manager_1:5000/write", json=req_payload)
 
         except Exception as e:
@@ -830,7 +789,9 @@ def delete():
 
     try:
         shardName = shardMap.getNameFromId(shard_id)
+
         req_payload = {"shard": shardName, "Stud_id": payload["Stud_id"]}
+
         res = requests.delete(f"http://shard_manager_1:5000/del", json=req_payload)
 
     except Exception as e:

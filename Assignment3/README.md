@@ -2,7 +2,7 @@
 
 ## System Design
 
-![image](https://github.com/Bbiswabasu/CS60002/assets/77141319/e12c5241-ba8f-4633-9e4e-a27704ee0dd7)
+![image](images/system_diagram.png)
 The repository implements a distributed load balancer with sharding in Python programming language using Flask for handling HTTP requests to interact with it over the network. Our architecture uses four classes namely ServerMap, Server, ShardMap and Shard to handle all the incoming requests and hold metadata.
 
 <ol>
@@ -10,6 +10,7 @@ The repository implements a distributed load balancer with sharding in Python pr
 <li>Server: Server is a class that holds the necessary information concerning the server instance - the details about the shards and the corresponding databases where they are present. This class handles the CRUD operations for the user requested data.</li>
 <li>ShardMap: ShardMap is a singleton class that maps shard IDs to the corresponding shard instances.</li>
 <li>Shard: Shard is a class that implements load balancing using consistent hashing for the incoming requests to the dynamically allocated servers.</li>
+<li>ShardManger: ShardManager is a class that maintains shards to server mappings. It also performs leader elections along with maintaining the metadata of primary servers.</li>
 </ol>
 
 ### Persistent Storage Handler
@@ -21,6 +22,17 @@ We have created a database access object (DAO) called Manager that provides an a
 <li>DataHandler: The DataHandler allows us access to all the useful CRUD operations provided by the SQLHandler. This abstraction helps us to migrate across different database solutions such as SQL or NoSQL as well as over different providers such as MySQL, MariaDB, MongoDB, Cassandra, etc.</li>
 <li>Manager: The Manager class provides the service layer object that is exposed for the controller endpoints. It is a wrapper over the DataHandler and SQLHandler.</li>
 </ol>
+
+### Log Replication
+
+All database write requests (`/write`, `/del`, `/update`) are sent to primary server, which does the following steps:
+<ol>
+<li>Writes the payload and the called endpoint in the WAL.</li>
+<li>Forwards the request with the same payload to secondary servers.</li>
+<li>Each secondary tries to append the payload and called endpoint in its WAL and then commits in its database.</li>
+<li>Once primary gets confirmation from majority of servers, it commits in its own database and returns response to the client.</li>
+</ol>
+When a server crashes and is restarted, all the requests present in logs corresponding to required shards are executed in the same order so that the database gets back to consistent state.
 
 ### Design Choice: In-Memory Storage for Load Balancer, Persistent Storage for Servers
 
@@ -34,11 +46,12 @@ We have created a database access object (DAO) called Manager that provides an a
 - The global lock is used to ensure mutual exclusion for populating the shard locks dictionary.
 - Once the shard locks are initialised, the locks in the dictionary provide a second level of mutual exclusion where each writer tries to acquire this lock, writes data once the lock is acquired and then releases the lock after completing the write operation.
 
-### Design Choice: Respawning Crashed Servers
+### Design Choice: Spawning Servers
 
-- Whenever a '\read' request is received and a server is allocated, the load balancer checks for a heartbeat from the server. If a heartbeat is returned, the request is satisfied by that server. If no heartbeat is received, the load balancer respawns the server along with the shards that it contained.
-- The load balancer uses the server to shard maps to identify the shards to be respawned and the shard to server maps to identify a server from which shard data can be duplicated using the '\copy' endpoint of the server.
-- Once the data is obtained, the server container is spawned, shard databases are created and the data is migrated.
+- Periodic heartbeats are checked to monitor server health.
+- Data consistency is ensured across different servers during the heartbeat checking phase by using WAL from the primary server.
+- Crash faults are detected during heartbeat check, they are respawned and are provided with the logs from the primary to maintain data consistency.
+- If primary fails, then leader election takes place and all followers are forced to use the same logs as the new leader. 
 
 ## Prerequisites
 

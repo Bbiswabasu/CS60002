@@ -34,6 +34,7 @@ def executeLog(logRequests):
 @app.route("/config", methods=["POST"])
 def config():
     payload = request.json
+
     logRequests = payload.get("logRequests", [])
     message = ""
     for shardName in payload["shards"]:
@@ -41,6 +42,7 @@ def config():
             managers[shardName] = Manager(
                 shardName, payload["schema"]["columns"], payload["schema"]["dtypes"]
             )
+
             message += f"Server0: {shardName}, "
             if os.path.exists(f"{shardName}_logs"):
                 os.remove(f"{shardName}_logs")
@@ -186,6 +188,8 @@ def delete():
 @app.route("/get_wal", methods=["GET"])
 def getWAL():
     payload = request.json
+
+
     shardName = payload["shard"]
     if not os.path.exists(f"{shardName}_logs"):
         response = {"data": [], "status": "success"}
@@ -193,6 +197,7 @@ def getWAL():
         logs = open(f"{shardName}_logs", "r")
         response = {"data": logs.readlines(), "status": "success"}
         logs.close()
+
     return response, 200
 
 
@@ -204,9 +209,14 @@ def getWALCount():
         response = {"count": -1, "status": "success"}
     else:
         logs = open(f"{shardName}_logs", "r")
-        response = {"data": len(logs.readlines()), "status": "success"}
+        response = {"count": len(logs.readlines()), "status": "success"}
         logs.close()
     return response, 200
+
+
+@app.before_request
+def log_request_info():
+    app.logger.debug("Body: %s", request.get_json())
 
 
 if __name__ == "__main__":

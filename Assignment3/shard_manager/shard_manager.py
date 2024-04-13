@@ -6,6 +6,8 @@ import os
 
 app = Flask(__name__)
 
+schema = None
+
 
 def periodic_heart_beat():
 
@@ -13,6 +15,7 @@ def periodic_heart_beat():
         shardManager = ShardManager()
         shardNameToServerMap = shardManager.getShardNameToServerMap()
 
+        shardsInServer = {}
         for shardName in shardNameToServerMap:
             serverMap = shardNameToServerMap[shardName]
 
@@ -20,40 +23,53 @@ def periodic_heart_beat():
 
             primaryServerName = serverMap.getPrimaryServerName()
 
-            serversList = serverMap.getServersList()
-            for server in serversList:
-                try:
-                    res = requests.get(f"http://{server}:5000/heartbeat")
-                    continue
-                except:
-                    pass
+            for server in serverMap.getServersList():
+                if server not in shardsInServer.keys():
+                    shardsInServer[server] = list()
+                shardsInServer[server].append(shardName)
 
-                try:
-                    res = os.popen(
-                        f"sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest"
-                    ).read()
-                    if len(res) == 0:
-                        raise
+        for server in shardsInServer.keys():
+            try:
+                res = requests.get(f"http://{server}:5000/heartbeat")
+                continue
+            except:
+                pass
+
+            try:
+                res = os.popen(
+                    f"sudo docker stop {server} ; sudo docker rm {server} ; sudo docker run --platform linux/x86_64 --name {server} --network pub --network-alias {server} -d ds_server:latest"
+                ).read()
+                if len(res) == 0:
+                    raise
+
+                for shardName in shardsInServer[server]:
 
                     req_body = {"shard": shardName}
 
-                    WAL_log = requests.get(
-                        f"http://{primaryServerName}:5000/get_wal", json=req_body
-                    ).json()
+                    serverMap = shardNameToServerMap[shardName]
+                    primaryServerName = serverMap.getPrimaryServerName()
 
-                    req_body = {"logRequests": WAL_log, "shards": [shardName]}
+                    config_req_body = {
+                        "shards": [shardName],
+                        "schema": schema,
+                    }
+                    if primaryServerName is not None:
+                        WAL_log = requests.get(
+                            f"http://{primaryServerName}:5000/get_wal", json=req_body
+                        ).json()
+                        config_req_body["logRequests"] = WAL_log["data"]
 
                     while True:
                         try:
                             res = requests.post(
-                                f"http://{server}:5000/config", json=req_body
+                                f"http://{server}:5000/config", json=config_req_body
                             )
                             break
                         except Exception as e:
                             print(e)
                             time.sleep(3)
-                except:
-                    print("Error in spawning new server")
+            except:
+                print("Error in spawning new server")
 
         time.sleep(15)
 
@@ -64,7 +80,8 @@ class ServerMap:
         self.serversList = []
 
     def printIt(self):
-
+        print(f"Primary Server - {self.primaryServerName}", flush=True)
+        print("ServerList", flush=True)
         for server in self.serversList:
             print(server, flush=True)
 
@@ -79,6 +96,7 @@ class ServerMap:
             self.primaryServerName = None
 
     def runPrimaryElection(self, shardName):
+
         try:
             res = requests.get(f"http://{self.primaryServerName}:5000/heartbeat")
             return
@@ -94,9 +112,12 @@ class ServerMap:
         for serverName in self.serversList:
             try:
                 req_body = {"shard": shardName}
+
                 res = requests.get(
                     f"http://{serverName}:5000/get_wal_count", json=req_body
-                ).json()
+                )
+
+                res = res.json()
 
                 if res["count"] > wal_count:
                     wal_count = res["count"]
@@ -150,8 +171,6 @@ class ShardManager:
             serverMap = self.shardNameToServerMap[shardName]
             serverMap.removeServer(serverName)
 
-            serverMap.runPrimaryElection(shardName)
-
     def printIt(self):
         for shardName, serverMap in self.shardNameToServerMap.items():
             serverMap.printIt()
@@ -170,8 +189,10 @@ def primary_elect():
 
 @app.route("/add", methods=["POST"])
 def add():
+    global schema
     payload = request.json
     shardManager = ShardManager()
+    schema = payload["schema"]
 
     for serverName, shardsList in payload["servers"].items():
         for shardName in shardsList:
@@ -236,7 +257,7 @@ def update():
     }
 
     try:
-        res = requests.post(f"http://{primaryServerName}:5000/update", json=req_body)
+        res = requests.put(f"http://{primaryServerName}:5000/update", json=req_body)
     except Exception as e:
         print(e)
 
@@ -269,6 +290,11 @@ def delete():
     response = {"message": "Succesfully Delete data", "status": "Sucessful"}
 
     return response, 200
+
+
+@app.before_request
+def log_request_info():
+    app.logger.debug("Body: %s", request.get_json())
 
 
 if __name__ == "__main__":
